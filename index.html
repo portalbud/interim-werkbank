@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interim Werkbank</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="app">
+ <aside>
+  <div class="brand"><div class="mark">Werkbank</div><div class="sub">Interim · v2</div></div>
+  <nav id="nav">
+   <button data-v="vandaag" class="active"><span class="dot"></span>Vandaag<span class="badge" id="b-vandaag">0</span></button>
+   <button data-v="rollen"><span class="dot"></span>Rollen<span class="badge" id="b-rollen">0</span></button>
+   <button data-v="team"><span class="dot"></span>Team &amp; CV</button>
+  </nav>
+  <div style="margin-top:auto;border-top:1px solid rgba(255,255,255,.08);padding-top:12px">
+   <button data-v="instellingen" style="all:unset;cursor:pointer;display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:7px;color:#c7d3c8;font-weight:500;font-size:13px;width:100%"><span class="dot"></span>Instellingen</button>
+  </div>
+  <div class="sidebar-section">
+   <label>Claude API-sleutel</label>
+   <input id="claudeKey" type="password" placeholder="sk-ant-...">
+   <div class="hint">Alleen lokaal opgeslagen in deze browser.</div>
+  </div>
+  <div class="sidebar-section" style="margin-top:auto">
+   <div style="font-size:11px;color:#9fb5a3"><span class="conn-dot" id="dbDot"></span><span id="dbStatus">Verbinding controleren…</span></div>
+  </div>
+ </aside>
+ <main>
+  <div class="topbar">
+   <div><h1 id="vTitle">Dashboard</h1></div>
+   <div class="spacer"></div>
+   <div id="topActions" style="display:flex;gap:8px"></div>
+  </div>
+  <div class="view" id="view"></div>
+ </main>
+</div>
+<div class="overlay" id="overlay"></div>
+<div class="drawer" id="drawer">
+ <div class="drawer-head">
+  <div style="flex:1"><h2 id="dTitle"></h2><div class="dsub" id="dSub"></div></div>
+  <button class="close" id="dClose">×</button>
+ </div>
+ <div class="drawer-body" id="dBody"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- External libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/dist/umd/supabase.min.js"></script>
+
+<!-- App scripts — order matters -->
+<script src="js/config.js"></script>
+<script src="js/state.js"></script>
+<script src="js/db.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/views.js"></script>
+<script src="js/portal.js"></script>
+<script src="js/batch.js"></script>
+<script src="js/drawers.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
