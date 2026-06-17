@@ -361,10 +361,11 @@ Strikte regels:
 - "oud" velden: KOPIEER de tekst LETTERLIJK uit de CV tekst — dit wordt gebruikt voor zoek-en-vervang
 - Functietitel (bovenaan): alleen de hoofdtitel direct onder de naam
 - Profielschets "oud": alleen de EERSTE ZIN letterlijk gekopieerd
-- Werkervaringstitel: functietitels uit de ervaringsblokken aanpassen volgens deze logica:
+- Werkervaringstitel: de vette/header functietitels in ervaringsblokken aanpassen:
     * Vergelijkbaar met doelrol → gebruik de exacte doelrol titel
     * Gerelateerd maar niet hetzelfde → gebruik een generieke term (bijv. "Business Consultant", "Project Professional", "IT Consultant", "Management Consultant")
-    * Duidelijk anders en niet relevant → sla over, vermeld niet in de lijst
+    * Duidelijk anders → sla over
+- Beschrijving functietitels: vermeldingen van een functietitel BINNEN de beschrijvingstekst van een ervaringsblok (bijv. "Als Business Analist heb ik…" of "in mijn rol als Senior Adviseur…"). Zelfde logica als werkervaringstitel. Kopieer de exacte zin of woordgroep letterlijk als "oud".
 - Bullets: maximaal 3, alleen herformuleren — geen nieuwe feiten
 - Geef null als een sectie geen aanpassing nodig heeft
 - Antwoord UITSLUITEND met geldige JSON`;
@@ -384,12 +385,15 @@ Geef JSON:
   "functietitel": { "oud": "exacte hoofdtitel bovenaan CV", "nieuw": "nieuwe titel" },
   "profielschets": { "oud": "exacte eerste zin huidig profiel", "nieuw": "nieuwe profielschets max 4 zinnen" },
   "werkervaringstitel": [
-    { "oud": "exacte functietitel uit ervaringsblok", "nieuw": "aangepaste titel" }
+    { "oud": "exacte functietitel uit ervaringsblok header", "nieuw": "aangepaste titel" }
+  ],
+  "beschrijving_titels": [
+    { "oud": "exacte woordgroep of zin met functietitel uit beschrijvingstekst", "nieuw": "aangepaste versie" }
   ],
   "bullets": [{ "oud": "exacte zin uit CV", "nieuw": "herformulering" }]
 }
 
-Gebruik null voor functietitel of profielschets als geen aanpassing nodig. Lege array [] voor werkervaringstitel en bullets als geen aanpassingen.`;
+Gebruik null voor functietitel of profielschets als geen aanpassing nodig. Lege arrays [] als geen aanpassingen.`;
 
   const raw = await claude(sys, usr, 1500);
   return pj(raw);
