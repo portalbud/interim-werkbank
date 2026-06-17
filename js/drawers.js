@@ -892,20 +892,185 @@ async function genereerKanaalCV(kanaalId) {
   const cand = k ? CANDIDATES.find(c => c.id === k.kandidaat_id) : null;
   if (!k || !rol || !cand) { toast('Selecteer eerst een kandidaat voor dit kanaal.'); return; }
   if (!claudeKey()) { toast('Vul je Claude API-sleutel in.'); return; }
-  toast('Beste CV-versie selecteren...', true);
+
+  // Laad CV blob
+  const req = { functietitel: rol.functietitel, opdrachtgever: rol.klant, locatie: rol.locatie, eisen: [], wensen: [], role_type: 'overig', cv_instructies: {} };
+  toast('CV ophalen...', true);
+  const cvVersie = await getBesteCVVersie(cand, req);
+  if (!cvVersie) { toast('Geen CV beschikbaar voor ' + cand.naam + '. Upload een bron-CV op de Team pagina.'); return; }
+
+  // Toon laadstatus in drawer
+  const body = document.getElementById('dBody');
+  body.innerHTML = `<div class="panel" style="text-align:center;padding:32px 16px">
+    <div class="spin" style="margin:0 auto 16px"></div>
+    <div style="font-size:13px;color:var(--ink-soft)">CV analyseren voor <b>${esc(rol.functietitel)}</b>…</div>
+    <div style="font-size:12px;color:var(--slate);margin-top:6px">Claude bekijkt alleen wat écht aangepast moet worden</div>
+  </div>`;
+
   try {
-    const req = { functietitel: rol.functietitel, opdrachtgever: rol.klant, locatie: rol.locatie, eisen: [], wensen: [], role_type: 'overig', cv_instructies: {} };
-    const cvVersie = await getBesteCVVersie(cand, req);
-    if (!cvVersie) { toast('Geen CV beschikbaar voor ' + cand.naam + '. Upload een rol-CV op de Team pagina.'); return; }
-    toast('CV ophalen...', true);
-    const docxBlob = await herschrijfDocx(cvVersie.blob, { naam_weergave: cand.naam, functietitel: rol.functietitel, kopprofiel: cand.profiel || '', kernkwaliteiten: [], skills: cand.skills || [], ervaring: cand.ervaring || [], opleiding: cand.opleiding || [], toelichting_eisen: [], signalen: [] }, cand);
-    const ab = await docxBlob.arrayBuffer();
+    const cvTekst = await extractFileText(cvVersie.blob);
+    const rolBeschrijving = [
+      'Functietitel: ' + rol.functietitel,
+      rol.klant ? 'Klant: ' + rol.klant : '',
+      rol.locatie ? 'Locatie: ' + rol.locatie : '',
+      rol.omschrijving ? 'Omschrijving: ' + rol.omschrijving : ''
+    ].filter(Boolean).join('\n');
+
+    const suggesties = await analyseerCVVoorRol(cand, rolBeschrijving, cvTekst);
+
+    // Sla reviewstatus op
+    window._cvReview = { kanaalId: k.id, rolId: k.rol_id, cvVersie, cand, rol, suggesties };
+
+    renderCVReviewUI();
+  } catch(e) {
+    toast('Fout bij analyseren: ' + e.message);
+    await openRolDrawer(k.rol_id);
+  }
+}
+
+function renderCVReviewUI() {
+  const { kanaalId, rolId, cand, rol, suggesties } = window._cvReview;
+  const body = document.getElementById('dBody');
+
+  const s = suggesties || {};
+  const bullets = Array.isArray(s.bullets) ? s.bullets : [];
+
+  let h = `<div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+    <button class="btn ghost sm" onclick="openRolDrawer('${rolId}')">← Terug</button>
+    <div>
+      <div style="font-weight:700;font-size:14px">CV aanpassen</div>
+      <div style="font-size:12px;color:var(--ink-soft)">${esc(cand.naam)} → ${esc(rol.functietitel)}${rol.klant ? ' bij ' + esc(rol.klant) : ''}</div>
+    </div>
+  </div>`;
+
+  // Functietitel
+  if (s.functietitel) {
+    h += `<div class="panel" style="padding:14px 16px">
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <input type="checkbox" id="rw_titel_aan" checked style="margin-top:3px;flex-shrink:0">
+        <div style="flex:1">
+          <div style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);margin-bottom:6px">Functietitel</div>
+          <div style="font-size:12.5px;color:var(--slate);margin-bottom:4px;text-decoration:line-through">${esc(cand.rollen?.[0] || '')}</div>
+          <input id="rw_titel_val" value="${esc(s.functietitel)}" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:13px;background:var(--white)">
+        </div>
+      </div>
+    </div>`;
+  } else {
+    h += `<div class="panel" style="padding:12px 16px;opacity:.5">
+      <div style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft)">Functietitel — geen aanpassing nodig</div>
+    </div>`;
+  }
+
+  // Profielschets
+  if (s.profielschets) {
+    h += `<div class="panel" style="padding:14px 16px">
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <input type="checkbox" id="rw_profiel_aan" checked style="margin-top:3px;flex-shrink:0">
+        <div style="flex:1">
+          <div style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);margin-bottom:6px">Profielschets</div>
+          <textarea id="rw_profiel_val" rows="4" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12.5px;background:var(--white);resize:vertical">${esc(s.profielschets)}</textarea>
+        </div>
+      </div>
+    </div>`;
+  } else {
+    h += `<div class="panel" style="padding:12px 16px;opacity:.5">
+      <div style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft)">Profielschets — geen aanpassing nodig</div>
+    </div>`;
+  }
+
+  // Bullets
+  if (bullets.length) {
+    h += `<div class="panel" style="padding:14px 16px">
+      <div style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);margin-bottom:12px">Taken / verantwoordelijkheden</div>`;
+    bullets.forEach((b, i) => {
+      h += `<div style="border:1px solid var(--line);border-radius:8px;padding:11px 13px;margin-bottom:8px">
+        <div style="display:flex;align-items:flex-start;gap:10px">
+          <input type="checkbox" id="rw_bullet_${i}" checked style="margin-top:3px;flex-shrink:0">
+          <div style="flex:1">
+            <div style="font-size:11.5px;color:var(--slate);margin-bottom:5px;font-style:italic">${esc(b.oud)}</div>
+            <div style="font-size:10px;color:var(--ink-soft);margin-bottom:4px">→</div>
+            <textarea id="rw_bullet_val_${i}" rows="2" style="width:100%;box-sizing:border-box;padding:6px 9px;border:1px solid var(--moss);border-radius:6px;font-size:12.5px;background:var(--white);resize:vertical">${esc(b.nieuw)}</textarea>
+          </div>
+        </div>
+      </div>`;
+    });
+    h += `</div>`;
+  } else {
+    h += `<div class="panel" style="padding:12px 16px;opacity:.5">
+      <div style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft)">Taken — geen aanpassingen nodig</div>
+    </div>`;
+  }
+
+  h += `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px">
+    <button class="btn" onclick="downloadMetWijzigingen()">CV downloaden</button>
+    <span style="font-size:11.5px;color:var(--slate)">Alleen aangevinkte wijzigingen worden toegepast.</span>
+  </div>`;
+
+  body.innerHTML = h;
+  document.getElementById('dTitle').textContent = 'CV review';
+  document.getElementById('dSub').textContent = cand.naam + ' · ' + rol.functietitel;
+}
+
+async function downloadMetWijzigingen() {
+  const { cvVersie, cand, rol, suggesties } = window._cvReview;
+  const s = suggesties || {};
+  const bullets = Array.isArray(s.bullets) ? s.bullets : [];
+
+  const vervangingen = [];
+
+  // Functietitel
+  if (s.functietitel && document.getElementById('rw_titel_aan')?.checked) {
+    const oudeT = cand.rollen?.[0] || '';
+    const nieuweT = document.getElementById('rw_titel_val')?.value || s.functietitel;
+    if (oudeT && oudeT !== nieuweT) vervangingen.push({ oud: oudeT, nieuw: nieuweT });
+  }
+
+  // Profielschets
+  if (s.profielschets && document.getElementById('rw_profiel_aan')?.checked) {
+    // Zoek de eerste alinea van het profiel in het CV als anker
+    const cvEl = document.getElementById('rw_profiel_val');
+    const nieuweProfiel = cvEl?.value || s.profielschets;
+    // Gebruik de eerste 80 tekens van het originele profiel als zoektekst
+    const oudeP = (cand.profiel || '').slice(0, 80).trim();
+    if (oudeP) vervangingen.push({ oud: oudeP, nieuw: nieuweProfiel.slice(0, oudeP.length + 100) });
+  }
+
+  // Bullets
+  bullets.forEach((b, i) => {
+    if (document.getElementById(`rw_bullet_${i}`)?.checked) {
+      const nieuweB = document.getElementById(`rw_bullet_val_${i}`)?.value || b.nieuw;
+      vervangingen.push({ oud: b.oud, nieuw: nieuweB });
+    }
+  });
+
+  if (!vervangingen.length) {
+    // Geen wijzigingen — download origineel
+    const ab = await cvVersie.blob.arrayBuffer();
+    const uri = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + arrayBufferToBase64(ab);
+    const a = document.createElement('a');
+    a.href = uri;
+    a.download = 'CV_' + cand.naam.replace(/\s+/g, '_') + '.docx';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    toast('Origineel CV gedownload (geen wijzigingen geselecteerd).');
+    return;
+  }
+
+  toast('Wijzigingen toepassen...', true);
+  try {
+    const { blob, resultaten } = await vervangTekstInDocx(cvVersie.blob, vervangingen);
+    const ab = await blob.arrayBuffer();
     const uri = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + arrayBufferToBase64(ab);
     const a = document.createElement('a');
     a.href = uri;
     a.download = 'CV_' + cand.naam.replace(/\s+/g, '_') + '_' + rol.functietitel.replace(/\W+/g, '_').slice(0, 20) + '.docx';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    toast('CV gedownload.');
+
+    const nietGevonden = resultaten.filter(r => r.status === 'niet_gevonden');
+    if (nietGevonden.length) {
+      toast(`CV gedownload. Let op: ${nietGevonden.length} aanpassing(en) niet gevonden in de tekst — controleer handmatig.`);
+    } else {
+      toast('CV gedownload met ' + resultaten.length + ' aanpassing(en).');
+    }
   } catch(e) { toast('Fout: ' + e.message); }
 }
 
