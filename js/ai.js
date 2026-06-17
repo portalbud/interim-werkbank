@@ -350,3 +350,87 @@ async function laadRawBlob(cand) {
     return false;
   }
 }
+
+// ── CV review: analyseer en stel minimale wijzigingen voor ───────────────────
+
+async function analyseerCVVoorRol(cand, rolBeschrijving, cvTekst) {
+  const sys = `Je bent een CV-specialist voor interim-professionals. Stel MINIMALE, CHIRURGISCHE aanpassingen voor aan een CV zodat het beter aansluit op een specifieke rol.
+
+Strikte regels:
+- Verzin NOOIT nieuwe ervaringen, vaardigheden, certificaten of prestaties
+- Pas alleen aan wat de professional aantoonbaar kan op basis van het profiel
+- Functietitel: alleen aanpassen als de doelrol duidelijk anders heet dan de huidige titel
+- Profielschets: max 4 zinnen, gebruik alleen informatie die al in het CV of profiel staat
+- Bullets: maximaal 3, alleen herformulering van bestaande tekst — geen nieuwe feiten
+- Als een aanpassing niet nodig of niet zinvol is, geef null terug
+- Antwoord UITSLUITEND met geldige JSON, geen toelichting`;
+
+  const usr = `KANDIDAAT: ${cand.naam} | ${cand.senioriteit}
+HUIDIGE ROLLEN: ${(cand.rollen || []).join(', ')}
+SKILLS: ${(cand.skills || []).join(', ')}
+PROFIEL: ${cand.profiel || '(geen profielschets beschikbaar)'}
+
+ROL WAARVOOR WE VOORSTELLEN:
+${rolBeschrijving}
+
+CV TEKST (eerste 4000 tekens):
+${cvTekst.slice(0, 4000)}
+
+Geef JSON in dit formaat:
+{
+  "functietitel": "nieuwe titel of null",
+  "profielschets": "nieuwe profielschets of null",
+  "bullets": [
+    { "oud": "exacte bestaande zin uit het CV", "nieuw": "hergeformuleerde versie" }
+  ]
+}`;
+
+  const raw = await claude(sys, usr, 1200);
+  return pj(raw);
+}
+
+// ── Gerichte tekstvervanging in .docx via JSZip ───────────────────────────────
+
+async function vervangTekstInDocx(blob, vervangingen) {
+  const zip = await JSZip.loadAsync(blob);
+  const xmlFile = zip.files['word/document.xml'];
+  if (!xmlFile) throw new Error('Geen geldig .docx bestand');
+
+  let xml = await xmlFile.async('string');
+  const resultaten = [];
+
+  for (const { oud, nieuw } of vervangingen) {
+    if (!oud || !nieuw || oud === nieuw) continue;
+    // Escape speciale XML-tekens voor zoeken
+    const zoek = oud
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+    const vervang = nieuw
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+    if (xml.includes(zoek)) {
+      xml = xml.split(zoek).join(vervang);
+      resultaten.push({ tekst: oud.slice(0, 40), status: 'vervangen' });
+    } else {
+      // Probeer zonder XML-escaping (soms staat tekst al geescaped opgeslagen)
+      if (xml.includes(oud)) {
+        xml = xml.split(oud).join(nieuw);
+        resultaten.push({ tekst: oud.slice(0, 40), status: 'vervangen' });
+      } else {
+        resultaten.push({ tekst: oud.slice(0, 40), status: 'niet_gevonden' });
+      }
+    }
+  }
+
+  zip.file('word/document.xml', xml);
+  const nieuweBlob = await zip.generateAsync({
+    type: 'blob',
+    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  });
+  return { blob: nieuweBlob, resultaten };
+}
