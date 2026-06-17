@@ -354,42 +354,67 @@ async function laadRawBlob(cand) {
 // ── CV review: analyseer en stel minimale wijzigingen voor ───────────────────
 
 async function analyseerCVVoorRol(cand, rolBeschrijving, cvTekst) {
-  const sys = `Je bent een CV-specialist voor interim-professionals. Stel MINIMALE, CHIRURGISCHE aanpassingen voor aan een CV zodat het beter aansluit op een specifieke rol.
+  const sys = `Je bent een CV-specialist voor interim-professionals. Stel MINIMALE aanpassingen voor aan een CV.
 
 Strikte regels:
 - Verzin NOOIT nieuwe ervaringen, vaardigheden, certificaten of prestaties
-- Pas alleen aan wat de professional aantoonbaar kan op basis van het profiel
-- Functietitel: alleen aanpassen als de doelrol duidelijk anders heet dan de huidige titel
-- Profielschets: max 4 zinnen, gebruik alleen informatie die al in het CV of profiel staat
-- Bullets: maximaal 3, alleen herformulering van bestaande tekst — geen nieuwe feiten
-- Als een aanpassing niet nodig of niet zinvol is, geef null terug
-- Antwoord UITSLUITEND met geldige JSON, geen toelichting`;
+- "oud" velden: KOPIEER de tekst LETTERLIJK uit de CV tekst hieronder — dit wordt gebruikt voor zoek-en-vervang
+- Functietitel: alleen de titel BOVENAAN het CV direct onder de naam (niet titels in de ervaringsblokken)
+- Profielschets "oud": alleen de EERSTE ZIN van de huidige profielschets, letterlijk gekopieerd
+- Bullets: maximaal 3, alleen herformuleren — geen nieuwe feiten verzinnen
+- Geef null als aanpassing niet zinvol is
+- Antwoord UITSLUITEND met geldige JSON`;
 
   const usr = `KANDIDAAT: ${cand.naam} | ${cand.senioriteit}
-HUIDIGE ROLLEN: ${(cand.rollen || []).join(', ')}
-SKILLS: ${(cand.skills || []).join(', ')}
-PROFIEL: ${cand.profiel || '(geen profielschets beschikbaar)'}
+ROLLEN: ${(cand.rollen || []).join(', ')}
+PROFIEL: ${cand.profiel || ''}
 
 ROL WAARVOOR WE VOORSTELLEN:
 ${rolBeschrijving}
 
-CV TEKST (eerste 4000 tekens):
+CV TEKST:
 ${cvTekst.slice(0, 4000)}
 
-Geef JSON in dit formaat:
+Geef JSON:
 {
-  "functietitel": "nieuwe titel of null",
-  "profielschets": "nieuwe profielschets of null",
-  "bullets": [
-    { "oud": "exacte bestaande zin uit het CV", "nieuw": "hergeformuleerde versie" }
-  ]
-}`;
+  "functietitel": { "oud": "exacte huidige titel bovenaan CV", "nieuw": "nieuwe titel" },
+  "profielschets": { "oud": "exacte eerste zin van huidig profiel", "nieuw": "volledige nieuwe profielschets max 4 zinnen" },
+  "bullets": [{ "oud": "exacte zin uit CV", "nieuw": "herformulering" }]
+}
+
+Gebruik null voor functietitel of profielschets als aanpassing niet nodig is.`;
 
   const raw = await claude(sys, usr, 1200);
   return pj(raw);
 }
 
 // ── Gerichte tekstvervanging in .docx via JSZip ───────────────────────────────
+
+// Strategie 2: paragraaf-niveau — werkt als tekst verspreid is over meerdere runs
+function vervangInParagraaf(xml, oudeT, nieuweT) {
+  const xmlEscNieuw = nieuweT
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  let gevonden = false;
+
+  const nieuweXml = xml.replace(/<w:p[ >][\s\S]*?<\/w:p>/g, (para) => {
+    // Haal alle tekst op uit de paragraaf (over alle runs heen)
+    const tekst = [...para.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)]
+      .map(m => m[1]).join('');
+
+    if (!gevonden && tekst.includes(oudeT)) {
+      gevonden = true;
+      // Zet nieuwe tekst in eerste <w:t>, maak de rest leeg
+      let isEerste = true;
+      return para.replace(/<w:t([^>]*)>([\s\S]*?)<\/w:t>/g, (match, attrs) => {
+        if (isEerste) { isEerste = false; return `<w:t${attrs}>${xmlEscNieuw}</w:t>`; }
+        return `<w:t${attrs}></w:t>`;
+      });
+    }
+    return para;
+  });
+
+  return { xml: nieuweXml, gevonden };
+}
 
 async function vervangTekstInDocx(blob, vervangingen) {
   const zip = await JSZip.loadAsync(blob);
@@ -401,29 +426,24 @@ async function vervangTekstInDocx(blob, vervangingen) {
 
   for (const { oud, nieuw } of vervangingen) {
     if (!oud || !nieuw || oud === nieuw) continue;
-    // Escape speciale XML-tekens voor zoeken
-    const zoek = oud
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-    const vervang = nieuw
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
 
-    if (xml.includes(zoek)) {
-      xml = xml.split(zoek).join(vervang);
+    const xmlEscOud = oud.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const xmlEscNieuw = nieuw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+    // Strategie 1: directe vervanging (tekst in één run)
+    if (xml.includes(xmlEscOud)) {
+      xml = xml.split(xmlEscOud).join(xmlEscNieuw);
+      resultaten.push({ tekst: oud.slice(0, 40), status: 'vervangen' });
+      continue;
+    }
+
+    // Strategie 2: paragraaf-niveau (tekst verspreid over meerdere runs)
+    const { xml: xmlNieuw, gevonden } = vervangInParagraaf(xml, oud, nieuw);
+    if (gevonden) {
+      xml = xmlNieuw;
       resultaten.push({ tekst: oud.slice(0, 40), status: 'vervangen' });
     } else {
-      // Probeer zonder XML-escaping (soms staat tekst al geescaped opgeslagen)
-      if (xml.includes(oud)) {
-        xml = xml.split(oud).join(nieuw);
-        resultaten.push({ tekst: oud.slice(0, 40), status: 'vervangen' });
-      } else {
-        resultaten.push({ tekst: oud.slice(0, 40), status: 'niet_gevonden' });
-      }
+      resultaten.push({ tekst: oud.slice(0, 40), status: 'niet_gevonden' });
     }
   }
 

@@ -936,6 +936,9 @@ function renderCVReviewUI() {
 
   const s = suggesties || {};
   const bullets = Array.isArray(s.bullets) ? s.bullets : [];
+  // Ondersteun zowel nieuw formaat {oud,nieuw} als oud formaat string
+  const titelObj   = s.functietitel  && typeof s.functietitel  === 'object' ? s.functietitel  : (s.functietitel  ? { oud: cand.rollen?.[0] || '', nieuw: s.functietitel  } : null);
+  const profielObj = s.profielschets && typeof s.profielschets === 'object' ? s.profielschets : (s.profielschets ? { oud: '',                        nieuw: s.profielschets } : null);
 
   let h = `<div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
     <button class="btn ghost sm" onclick="openRolDrawer('${rolId}')">← Terug</button>
@@ -946,14 +949,15 @@ function renderCVReviewUI() {
   </div>`;
 
   // Functietitel
-  if (s.functietitel) {
+  if (titelObj) {
     h += `<div class="panel" style="padding:14px 16px">
       <div style="display:flex;align-items:flex-start;gap:10px">
         <input type="checkbox" id="rw_titel_aan" checked style="margin-top:3px;flex-shrink:0">
         <div style="flex:1">
           <div style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);margin-bottom:6px">Functietitel</div>
-          <div style="font-size:12.5px;color:var(--slate);margin-bottom:4px;text-decoration:line-through">${esc(cand.rollen?.[0] || '')}</div>
-          <input id="rw_titel_val" value="${esc(s.functietitel)}" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:13px;background:var(--white)">
+          ${titelObj.oud ? `<div style="font-size:12px;color:var(--slate);margin-bottom:6px;text-decoration:line-through">${esc(titelObj.oud)}</div>` : ''}
+          <input id="rw_titel_val" value="${esc(titelObj.nieuw)}" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:13px;background:var(--white)">
+          <div id="rw_titel_oud" style="display:none">${esc(titelObj.oud)}</div>
         </div>
       </div>
     </div>`;
@@ -964,13 +968,15 @@ function renderCVReviewUI() {
   }
 
   // Profielschets
-  if (s.profielschets) {
+  if (profielObj) {
     h += `<div class="panel" style="padding:14px 16px">
       <div style="display:flex;align-items:flex-start;gap:10px">
         <input type="checkbox" id="rw_profiel_aan" checked style="margin-top:3px;flex-shrink:0">
         <div style="flex:1">
           <div style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);margin-bottom:6px">Profielschets</div>
-          <textarea id="rw_profiel_val" rows="4" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12.5px;background:var(--white);resize:vertical">${esc(s.profielschets)}</textarea>
+          ${profielObj.oud ? `<div style="font-size:12px;color:var(--slate);margin-bottom:6px;font-style:italic">${esc(profielObj.oud.slice(0, 120))}${profielObj.oud.length > 120 ? '…' : ''}</div>` : ''}
+          <textarea id="rw_profiel_val" rows="4" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12.5px;background:var(--white);resize:vertical">${esc(profielObj.nieuw)}</textarea>
+          <div id="rw_profiel_oud" style="display:none">${esc(profielObj.oud)}</div>
         </div>
       </div>
     </div>`;
@@ -1020,21 +1026,18 @@ async function downloadMetWijzigingen() {
 
   const vervangingen = [];
 
-  // Functietitel
-  if (s.functietitel && document.getElementById('rw_titel_aan')?.checked) {
-    const oudeT = cand.rollen?.[0] || '';
-    const nieuweT = document.getElementById('rw_titel_val')?.value || s.functietitel;
-    if (oudeT && oudeT !== nieuweT) vervangingen.push({ oud: oudeT, nieuw: nieuweT });
+  // Functietitel — gebruik de exacte oude tekst die Claude uit het CV haalde
+  if (document.getElementById('rw_titel_aan')?.checked) {
+    const oudeT = document.getElementById('rw_titel_oud')?.textContent?.trim() || '';
+    const nieuweT = document.getElementById('rw_titel_val')?.value?.trim() || '';
+    if (oudeT && nieuweT && oudeT !== nieuweT) vervangingen.push({ oud: oudeT, nieuw: nieuweT });
   }
 
-  // Profielschets
-  if (s.profielschets && document.getElementById('rw_profiel_aan')?.checked) {
-    // Zoek de eerste alinea van het profiel in het CV als anker
-    const cvEl = document.getElementById('rw_profiel_val');
-    const nieuweProfiel = cvEl?.value || s.profielschets;
-    // Gebruik de eerste 80 tekens van het originele profiel als zoektekst
-    const oudeP = (cand.profiel || '').slice(0, 80).trim();
-    if (oudeP) vervangingen.push({ oud: oudeP, nieuw: nieuweProfiel.slice(0, oudeP.length + 100) });
+  // Profielschets — gebruik de exacte eerste zin die Claude uit het CV haalde
+  if (document.getElementById('rw_profiel_aan')?.checked) {
+    const oudeP = document.getElementById('rw_profiel_oud')?.textContent?.trim() || '';
+    const nieuweP = document.getElementById('rw_profiel_val')?.value?.trim() || '';
+    if (oudeP && nieuweP && oudeP !== nieuweP) vervangingen.push({ oud: oudeP, nieuw: nieuweP });
   }
 
   // Bullets
