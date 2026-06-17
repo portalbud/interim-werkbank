@@ -935,7 +935,8 @@ function renderCVReviewUI() {
   const body = document.getElementById('dBody');
 
   const s = suggesties || {};
-  const bullets = Array.isArray(s.bullets) ? s.bullets : [];
+  const bullets   = Array.isArray(s.bullets) ? s.bullets : [];
+  const ervTitels = Array.isArray(s.werkervaringstitel) ? s.werkervaringstitel : [];
   // Ondersteun zowel nieuw formaat {oud,nieuw} als oud formaat string
   const titelObj   = s.functietitel  && typeof s.functietitel  === 'object' ? s.functietitel  : (s.functietitel  ? { oud: cand.rollen?.[0] || '', nieuw: s.functietitel  } : null);
   const profielObj = s.profielschets && typeof s.profielschets === 'object' ? s.profielschets : (s.profielschets ? { oud: '',                        nieuw: s.profielschets } : null);
@@ -986,6 +987,28 @@ function renderCVReviewUI() {
     </div>`;
   }
 
+  // Werkervaring functietitels
+  if (ervTitels.length) {
+    h += `<div class="panel" style="padding:14px 16px">
+      <div style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);margin-bottom:12px">Functietitels werkervaring</div>`;
+    ervTitels.forEach((e, i) => {
+      h += `<div style="border:1px solid var(--line);border-radius:8px;padding:11px 13px;margin-bottom:8px">
+        <div style="display:flex;align-items:flex-start;gap:10px">
+          <input type="checkbox" id="rw_erv_${i}" checked style="margin-top:3px;flex-shrink:0">
+          <div style="flex:1">
+            <div style="font-size:11.5px;color:var(--slate);margin-bottom:5px;text-decoration:line-through">${esc(e.oud)}</div>
+            <input id="rw_erv_val_${i}" value="${esc(e.nieuw)}" style="width:100%;box-sizing:border-box;padding:6px 9px;border:1px solid var(--moss);border-radius:6px;font-size:12.5px;background:var(--white)">
+          </div>
+        </div>
+      </div>`;
+    });
+    h += `</div>`;
+  } else {
+    h += `<div class="panel" style="padding:12px 16px;opacity:.5">
+      <div style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft)">Functietitels werkervaring — geen aanpassingen nodig</div>
+    </div>`;
+  }
+
   // Bullets
   if (bullets.length) {
     h += `<div class="panel" style="padding:14px 16px">
@@ -1022,7 +1045,8 @@ function renderCVReviewUI() {
 async function downloadMetWijzigingen() {
   const { cvVersie, cand, rol, suggesties } = window._cvReview;
   const s = suggesties || {};
-  const bullets = Array.isArray(s.bullets) ? s.bullets : [];
+  const bullets   = Array.isArray(s.bullets) ? s.bullets : [];
+  const ervTitels = Array.isArray(s.werkervaringstitel) ? s.werkervaringstitel : [];
 
   const vervangingen = [];
 
@@ -1039,6 +1063,14 @@ async function downloadMetWijzigingen() {
     const nieuweP = document.getElementById('rw_profiel_val')?.value?.trim() || '';
     if (oudeP && nieuweP && oudeP !== nieuweP) vervangingen.push({ oud: oudeP, nieuw: nieuweP });
   }
+
+  // Werkervaring functietitels
+  ervTitels.forEach((e, i) => {
+    if (document.getElementById(`rw_erv_${i}`)?.checked) {
+      const nieuweE = document.getElementById(`rw_erv_val_${i}`)?.value?.trim() || e.nieuw;
+      if (e.oud && nieuweE && e.oud !== nieuweE) vervangingen.push({ oud: e.oud, nieuw: nieuweE });
+    }
+  });
 
   // Bullets
   bullets.forEach((b, i) => {

@@ -358,11 +358,15 @@ async function analyseerCVVoorRol(cand, rolBeschrijving, cvTekst) {
 
 Strikte regels:
 - Verzin NOOIT nieuwe ervaringen, vaardigheden, certificaten of prestaties
-- "oud" velden: KOPIEER de tekst LETTERLIJK uit de CV tekst hieronder — dit wordt gebruikt voor zoek-en-vervang
-- Functietitel: alleen de titel BOVENAAN het CV direct onder de naam (niet titels in de ervaringsblokken)
-- Profielschets "oud": alleen de EERSTE ZIN van de huidige profielschets, letterlijk gekopieerd
-- Bullets: maximaal 3, alleen herformuleren — geen nieuwe feiten verzinnen
-- Geef null als aanpassing niet zinvol is
+- "oud" velden: KOPIEER de tekst LETTERLIJK uit de CV tekst — dit wordt gebruikt voor zoek-en-vervang
+- Functietitel (bovenaan): alleen de hoofdtitel direct onder de naam
+- Profielschets "oud": alleen de EERSTE ZIN letterlijk gekopieerd
+- Werkervaringstitel: functietitels uit de ervaringsblokken aanpassen volgens deze logica:
+    * Vergelijkbaar met doelrol → gebruik de exacte doelrol titel
+    * Gerelateerd maar niet hetzelfde → gebruik een generieke term (bijv. "Business Consultant", "Project Professional", "IT Consultant", "Management Consultant")
+    * Duidelijk anders en niet relevant → sla over, vermeld niet in de lijst
+- Bullets: maximaal 3, alleen herformuleren — geen nieuwe feiten
+- Geef null als een sectie geen aanpassing nodig heeft
 - Antwoord UITSLUITEND met geldige JSON`;
 
   const usr = `KANDIDAAT: ${cand.naam} | ${cand.senioriteit}
@@ -373,18 +377,21 @@ ROL WAARVOOR WE VOORSTELLEN:
 ${rolBeschrijving}
 
 CV TEKST:
-${cvTekst.slice(0, 4000)}
+${cvTekst.slice(0, 4500)}
 
 Geef JSON:
 {
-  "functietitel": { "oud": "exacte huidige titel bovenaan CV", "nieuw": "nieuwe titel" },
-  "profielschets": { "oud": "exacte eerste zin van huidig profiel", "nieuw": "volledige nieuwe profielschets max 4 zinnen" },
+  "functietitel": { "oud": "exacte hoofdtitel bovenaan CV", "nieuw": "nieuwe titel" },
+  "profielschets": { "oud": "exacte eerste zin huidig profiel", "nieuw": "nieuwe profielschets max 4 zinnen" },
+  "werkervaringstitel": [
+    { "oud": "exacte functietitel uit ervaringsblok", "nieuw": "aangepaste titel" }
+  ],
   "bullets": [{ "oud": "exacte zin uit CV", "nieuw": "herformulering" }]
 }
 
-Gebruik null voor functietitel of profielschets als aanpassing niet nodig is.`;
+Gebruik null voor functietitel of profielschets als geen aanpassing nodig. Lege array [] voor werkervaringstitel en bullets als geen aanpassingen.`;
 
-  const raw = await claude(sys, usr, 1200);
+  const raw = await claude(sys, usr, 1500);
   return pj(raw);
 }
 
