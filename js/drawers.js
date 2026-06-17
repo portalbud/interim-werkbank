@@ -1052,8 +1052,8 @@ function renderCVReviewUI() {
   }
 
   h += `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px">
-    <button class="btn" onclick="downloadMetWijzigingen()">CV downloaden</button>
-    <span style="font-size:11.5px;color:var(--slate)">Alleen aangevinkte wijzigingen worden toegepast.</span>
+    <button class="btn" onclick="downloadMetWijzigingen()">CV + Mail klaarzetten</button>
+    <span style="font-size:11.5px;color:var(--slate)">CV aanpassen · mail genereren · als .eml downloaden</span>
   </div>`;
 
   body.innerHTML = h;
@@ -1108,35 +1108,67 @@ async function downloadMetWijzigingen() {
     }
   });
 
-  if (!vervangingen.length) {
-    // Geen wijzigingen — download origineel
-    const ab = cvVersie.blob instanceof ArrayBuffer ? cvVersie.blob : await cvVersie.blob.arrayBuffer();
-    const uri = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + arrayBufferToBase64(ab);
-    const a = document.createElement('a');
-    a.href = uri;
-    a.download = `CV ${cand.naam} - ${rol.functietitel} (JGP).docx`;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    toast('Origineel CV gedownload (geen wijzigingen geselecteerd).');
-    return;
-  }
+  const cvNaam = `CV ${cand.naam} - ${rol.functietitel} (JGP).docx`;
 
-  toast('Wijzigingen toepassen...', true);
+  toast('CV aanpassen...', true);
+  let cvBlob;
+  let waarschuwing = '';
   try {
-    const { blob, resultaten } = await vervangTekstInDocx(cvVersie.blob, vervangingen);
-    const ab = await blob.arrayBuffer();
-    const uri = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + arrayBufferToBase64(ab);
-    const a = document.createElement('a');
-    a.href = uri;
-    a.download = `CV ${cand.naam} - ${rol.functietitel} (JGP).docx`;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-
-    const nietGevonden = resultaten.filter(r => r.status === 'niet_gevonden');
-    if (nietGevonden.length) {
-      toast(`CV gedownload. Let op: ${nietGevonden.length} aanpassing(en) niet gevonden in de tekst — controleer handmatig.`);
+    if (!vervangingen.length) {
+      cvBlob = cvVersie.blob instanceof ArrayBuffer ? new Blob([cvVersie.blob]) : cvVersie.blob;
     } else {
-      toast('CV gedownload met ' + resultaten.length + ' aanpassing(en).');
+      const { blob, resultaten } = await vervangTekstInDocx(cvVersie.blob, vervangingen);
+      cvBlob = blob;
+      const nietGevonden = resultaten.filter(r => r.status === 'niet_gevonden');
+      if (nietGevonden.length) waarschuwing = ` Let op: ${nietGevonden.length} aanpassing(en) niet gevonden — controleer handmatig.`;
     }
-  } catch(e) { toast('Fout: ' + e.message); }
+  } catch(e) { toast('Fout bij CV aanpassen: ' + e.message); return; }
+
+  toast('Mail genereren...', true);
+  let mailData;
+  try {
+    mailData = await genereerKanaalMailTekst(rol, cand);
+  } catch(e) { toast('Fout bij mail genereren: ' + e.message); return; }
+
+  toast('EML samenstellen...', true);
+  try {
+    const s = SETTINGS;
+    const from = `${s.afzender_naam||'PortalBuddy'} <${s.afzender_email||''}>`;
+    const boundary = '----=_Part_' + Date.now();
+    const cvB64 = arrayBufferToBase64(await cvBlob.arrayBuffer());
+
+    const eml = [
+      `From: ${from}`,
+      `To: `,
+      `Subject: ${mailData.onderwerp||'Kandidaatpresentatie'}`,
+      `Date: ${new Date().toUTCString()}`,
+      `MIME-Version: 1.0`,
+      `Content-Type: multipart/mixed; boundary="${boundary}"`,
+      ``,
+      `--${boundary}`,
+      `Content-Type: text/plain; charset="utf-8"`,
+      `Content-Transfer-Encoding: quoted-printable`,
+      ``,
+      mailData.body || '',
+      ``,
+      `--${boundary}`,
+      `Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document; name="${cvNaam}"`,
+      `Content-Transfer-Encoding: base64`,
+      `Content-Disposition: attachment; filename="${cvNaam}"`,
+      ``,
+      cvB64,
+      `--${boundary}--`
+    ].join('\r\n');
+
+    const emlBlob = new Blob([eml], { type: 'message/rfc822' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(emlBlob);
+    a.download = `${cand.naam} - ${rol.functietitel} (JGP).eml`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+
+    toast('Mail + CV klaar — dubbelklik het .eml bestand om te openen in Outlook.' + waarschuwing);
+  } catch(e) { toast('Fout bij EML aanmaken: ' + e.message); }
 }
 
 async function genereerKanaalMail(kanaalId) {

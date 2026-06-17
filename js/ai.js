@@ -162,6 +162,35 @@ Opleiding, certificaten en talen: neem exact over, verander niets.`;
   return pj(await claude(sys, usr, 3200));
 }
 
+// ── Begeleidingsmail voor kanaal (op basis van rol, geen aanvraag nodig) ──────
+
+async function genereerKanaalMailTekst(rol, cand) {
+  const s = SETTINGS;
+  const sys = `Je schrijft een zakelijke Nederlandse begeleidende e-mail waarmee een interim-kandidaat wordt voorgesteld aan een broker of opdrachtgever. Regels:
+1. Kort en concreet — maximaal 3 alinea's.
+2. VERBODEN: "bewezen staat van dienst", "aantoonbare ervaring", "gedegen kennis", "passie voor", "gedreven", "hands-on", "proactief", "resultaatgericht", "toegevoegde waarde", "sparringpartner", "enthousiast" en andere HR-clichés.
+3. Noem alleen wat echt aanwezig is in het profiel.
+4. Vermeld dat het CV als bijlage is toegevoegd.
+5. Sluit af met de opgegeven ondertekening.
+Antwoord ALLEEN geldige JSON.`;
+
+  const usr = `AFZENDER: ${s.afzender_naam||'[naam]'}${s.afzender_functie?', '+s.afzender_functie:''}${s.bedrijf?', '+s.bedrijf:''}${s.afzender_telefoon?' · '+s.afzender_telefoon:''}
+ONDERTEKENING: ${s.ondertekening||'Met vriendelijke groet,'}
+
+ROL: ${rol.functietitel}${rol.klant?' bij '+rol.klant:''}${rol.locatie?' | '+rol.locatie:''}
+${rol.omschrijving?'OMSCHRIJVING: '+rol.omschrijving.slice(0,400):''}
+
+KANDIDAAT: ${cand.naam} | ${cand.senioriteit} | €${cand.tarief||'?'}/uur | beschikbaar ${cand.beschikbaar||'?'}
+PROFIEL: ${cand.profiel||''}
+ROLLEN: ${(cand.rollen||[]).join(', ')}
+SKILLS: ${(cand.skills||[]).slice(0,8).join(', ')}
+
+CV is als .docx bijgevoegd.
+JSON: {"onderwerp":str,"body":str}`;
+
+  return pj(await claude(sys, usr, 1000));
+}
+
 // ── Begeleidingsmail genereren ────────────────────────────────────────────────
 
 async function generateMail(req, cand, match, cvData) {
