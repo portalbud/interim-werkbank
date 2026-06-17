@@ -501,7 +501,7 @@ function buildCandidateForm(c) {
       <div class="field"><label>Naam *</label><input id="k_naam" value="${esc(c.naam)}"></div>
       <div class="field"><label>E-mail</label><input id="k_email" value="${esc(c.email || '')}"></div>
       <div class="field"><label>Beschikbaar vanaf</label><input type="date" id="k_besch" value="${esc(c.beschikbaar || '')}"></div>
-      <div class="field"><label>Tarief EUR/uur</label><input id="k_tarief" value="${esc(c.tarief || '')}"></div>
+      <div class="field"><label>Tarief EUR/uur *</label><input id="k_tarief" value="${esc(c.tarief || '')}"></div>
       <div class="field"><label>Locatie</label><input id="k_loc" value="${esc(c.locatie || '')}"></div>
       <div class="field"><label>Reisbereidheid (km)</label><input id="k_reis" value="${esc(c.reisbereidheid || 60)}"></div>
     </div>
@@ -615,7 +615,8 @@ async function saveCandidate() {
   c.email       = document.getElementById('k_email')?.value || '';
   c.beschikbaar = document.getElementById('k_besch')?.value.trim() || null;
   const tarifEl = document.getElementById('k_tarief');
-  c.tarief      = tarifEl && tarifEl.value.trim() ? +tarifEl.value : null;
+  if (!tarifEl || !tarifEl.value.trim()) { toast('Tarief is verplicht.'); return; }
+  c.tarief      = +tarifEl.value;
   c.locatie     = document.getElementById('k_loc')?.value.trim() || null;
   const reisEl  = document.getElementById('k_reis');
   c.reisbereidheid = reisEl && reisEl.value.trim() ? +reisEl.value : null;
