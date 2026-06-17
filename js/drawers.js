@@ -56,7 +56,7 @@ function renderReqBody(r) {
    <div class="field"><label>Duur</label><input id="re_duur" value="${esc(r.duur || '')}"></div>
    <div class="field"><label>Uren/week</label><input id="re_uren" value="${esc(r.uren_per_week || '')}"></div>
    <div class="field"><label>Max tarief</label><input id="re_tarief" value="${esc(r.tarief_max || '')}"></div>
-   <div class="field"><label>Deadline</label><input id="re_deadline" value="${esc(r.deadline || '')}"></div>
+   <div class="field"><label>Deadline</label><input type="date" id="re_deadline" value="${esc(r.deadline || '')}"></div>
   </div>
   <div class="field"><label>Eisen (komma-gescheiden)</label><input id="re_eisen" value="${esc(eisen.join(', '))}"></div>
   <div class="field"><label>Wensen (komma-gescheiden)</label><input id="re_wensen" value="${esc(wensen.join(', '))}"></div>
@@ -703,7 +703,7 @@ function buildRolDrawerHtml(rol, kanalen) {
   h += '<div class="field"><label>Klant / Opdrachtgever</label><input id="rd_klant" value="' + esc(r.klant || '') + '"></div>';
   h += '<div class="field"><label>Locatie</label><input id="rd_locatie" value="' + esc(r.locatie || '') + '"></div>';
   h += '<div class="field"><label>Uren/week</label><input id="rd_uren" value="' + esc(r.uren_per_week || '') + '"></div>';
-  h += '<div class="field"><label>Globale deadline</label><input id="rd_deadline" value="' + esc(r.deadline || '') + '" placeholder="bijv. 2026-07-15"></div>';
+  h += '<div class="field"><label>Globale deadline</label><input type="date" id="rd_deadline" value="' + esc(r.deadline || '') + '"></div>';
   h += '<div class="field"><label>Status</label><select id="rd_status"><option value="open" ' + (r.status === 'open' ? 'selected' : '') + '>Open</option><option value="afgerond" ' + (r.status === 'afgerond' ? 'selected' : '') + '>Afgerond</option></select></div>';
   h += '</div><div class="field"><label>Omschrijving / eisen</label><textarea id="rd_omschrijving" rows="4">' + esc(r.omschrijving || '') + '</textarea></div>';
   h += '<button class="btn sm" onclick="saveRol()">Rol opslaan</button></div>';
@@ -719,7 +719,7 @@ function buildRolDrawerHtml(rol, kanalen) {
     h += '<div class="field"><label>Broker / Partij</label><input id="nk_broker" placeholder="Hero, Striive, Randstad..."></div>';
     h += '<div class="field"><label>Type</label><select id="nk_type"><option value="mail">Mail</option><option value="portal">Portal</option><option value="telefoon">Telefoon / Appje</option></select></div>';
     h += '<div class="field"><label>Portal URL (optioneel)</label><input id="nk_url" placeholder="https://..."></div>';
-    h += '<div class="field"><label>Deadline</label><input id="nk_deadline" placeholder="bijv. 2026-07-10"></div>';
+    h += '<div class="field"><label>Deadline</label><input type="date" id="nk_deadline"></div>';
     h += '<div class="field"><label>Opgepakt door</label><select id="nk_opgepakt"><option value="">- niemand -</option>' + TEAMLEDEN.map(t => '<option>' + esc(t.naam) + '</option>').join('') + '</select></div>';
     h += '<div class="field"><label>Kandidaat</label><select id="nk_kandidaat"><option value="">- nog niet gekozen -</option>' + CANDIDATES.map(c => '<option value="' + c.id + '">' + esc(c.naam) + '</option>').join('') + '</select></div>';
     h += '</div><button class="btn sm" onclick="voegKanaalToe(this.dataset.id)" data-id=' + rol.id + '>Kanaal toevoegen</button>';
@@ -747,7 +747,7 @@ function buildKanaalBlok(k) {
   h += '<div class="field"><label>Kandidaat</label><select id="kk_cand_' + k.id + '" onchange="updateKanaal(' + k.id + ',&quot;kandidaat_id&quot;,this.value)"><option value="">- geen -</option>' + CANDIDATES.map(c => '<option value="' + c.id + '"' + (k.kandidaat_id === c.id ? ' selected' : '') + '>' + esc(c.naam) + '</option>').join('') + '</select></div>';
   h += '<div class="field"><label>Opgepakt door</label><select id="kk_opg_' + k.id + '" onchange="updateKanaal(' + k.id + ',&quot;opgepakt_door&quot;,this.value)"><option value="">- niemand -</option>' + TEAMLEDEN.map(t => '<option' + (k.opgepakt_door === t.naam ? ' selected' : '') + '>' + esc(t.naam) + '</option>').join('') + '</select></div>';
   h += '<div class="field"><label>Status</label><select id="kk_stat_' + k.id + '" onchange="updateKanaal(' + k.id + ',&quot;status&quot;,this.value)">' + ['nieuw', 'in_behandeling', 'verstuurd', 'afgewezen', 'gewonnen'].map(s => '<option' + (k.status === s ? ' selected' : '') + '>' + s + '</option>').join('') + '</select></div>';
-  h += '<div class="field"><label>Deadline</label><input id="kk_dl_' + k.id + '" value="' + esc(k.deadline || '') + '" onchange="updateKanaal(' + k.id + ',&quot;deadline&quot;,this.value)"></div>';
+  h += '<div class="field"><label>Deadline</label><input type="date" id="kk_dl_' + k.id + '" value="' + esc(k.deadline || '') + '" onchange="updateKanaal(' + k.id + ',&quot;deadline&quot;,this.value)"></div>';
   h += '</div>';
   if (k.kandidaat_id) {
     const cand = CANDIDATES.find(c => c.id === k.kandidaat_id);
