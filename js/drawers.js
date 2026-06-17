@@ -1114,7 +1114,7 @@ async function downloadMetWijzigingen() {
     const uri = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + arrayBufferToBase64(ab);
     const a = document.createElement('a');
     a.href = uri;
-    a.download = 'CV_' + cand.naam.replace(/\s+/g, '_') + '.docx';
+    a.download = `CV ${cand.naam} - ${rol.functietitel} (JGP).docx`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     toast('Origineel CV gedownload (geen wijzigingen geselecteerd).');
     return;
@@ -1127,7 +1127,7 @@ async function downloadMetWijzigingen() {
     const uri = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + arrayBufferToBase64(ab);
     const a = document.createElement('a');
     a.href = uri;
-    a.download = 'CV_' + cand.naam.replace(/\s+/g, '_') + '_' + rol.functietitel.replace(/\W+/g, '_').slice(0, 20) + '.docx';
+    a.download = `CV ${cand.naam} - ${rol.functietitel} (JGP).docx`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
 
     const nietGevonden = resultaten.filter(r => r.status === 'niet_gevonden');
