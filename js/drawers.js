@@ -908,7 +908,9 @@ async function genereerKanaalCV(kanaalId) {
   </div>`;
 
   try {
-    const cvTekst = await extractFileText(cvVersie.blob);
+    // Blob uit storage heeft geen .name — extraheer tekst direct via mammoth
+    const cvBuf = await cvVersie.blob.arrayBuffer();
+    const cvTekst = (await mammoth.extractRawText({ arrayBuffer: cvBuf })).value;
     const rolBeschrijving = [
       'Functietitel: ' + rol.functietitel,
       rol.klant ? 'Klant: ' + rol.klant : '',
