@@ -825,7 +825,7 @@ async function updateKanaal(kanaalId, veld, waarde) {
 
 async function verwijderKanaal(id) {
   if (!confirm('Kanaal verwijderen?')) return;
-  const k = KANALEN.find(x => x.id === id);
+  const k = KANALEN.find(x => x.id == id);
   const rolId = k?.rol_id;
   await DB.deleteKanaal(id);
   KANALEN = await DB.getKanalen();
@@ -887,7 +887,7 @@ async function samenvoegRollen(rolId1, rolId2) {
 }
 
 async function genereerKanaalCV(kanaalId) {
-  const k = KANALEN.find(x => x.id === kanaalId);
+  const k = KANALEN.find(x => x.id == kanaalId);
   const rol = k ? ROLLEN.find(r => r.id === k.rol_id) : null;
   const cand = k ? CANDIDATES.find(c => c.id === k.kandidaat_id) : null;
   if (!k || !rol || !cand) { toast('Selecteer eerst een kandidaat voor dit kanaal.'); return; }
@@ -910,7 +910,7 @@ async function genereerKanaalCV(kanaalId) {
 }
 
 async function genereerKanaalMail(kanaalId) {
-  const k = KANALEN.find(x => x.id === kanaalId);
+  const k = KANALEN.find(x => x.id == kanaalId);
   const rol = k ? ROLLEN.find(r => r.id === k.rol_id) : null;
   const cand = k ? CANDIDATES.find(c => c.id === k.kandidaat_id) : null;
   if (!k || !rol || !cand) { toast('Selecteer eerst een kandidaat voor dit kanaal.'); return; }
