@@ -18,7 +18,7 @@ function setView(v) {
 
 function renderTopActions(v) {
   const el = document.getElementById('topActions');
-  if (v === 'vandaag')      el.innerHTML = '<button class="btn ghost sm" onclick="openInvoerDrawer()">+ Aanvraag toevoegen</button>';
+  if (v === 'vandaag')      el.innerHTML = '';
   else if (v === 'rollen')  el.innerHTML = '<button class="btn ghost sm" onclick="openRolDrawer(null)">+ Nieuwe rol</button>';
   else if (v === 'team')    el.innerHTML = '<button class="btn ghost sm" onclick="openCandidateDrawer(null)">+ Nieuwe collega</button><button class="btn sm" style="margin-left:8px" onclick="openBatchUpload()">Batch CV upload</button>';
   else                      el.innerHTML = '';
