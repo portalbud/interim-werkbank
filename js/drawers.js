@@ -504,7 +504,6 @@ function buildCandidateForm(c) {
       <div class="field"><label>Tarief EUR/uur</label><input id="k_tarief" value="${esc(c.tarief || '')}"></div>
       <div class="field"><label>Locatie</label><input id="k_loc" value="${esc(c.locatie || '')}"></div>
       <div class="field"><label>Reisbereidheid (km)</label><input id="k_reis" value="${esc(c.reisbereidheid || 60)}"></div>
-      <div class="field"><label>Senioriteit</label><select id="k_sen">${['Junior', 'Medior', 'Senior', 'Lead'].map(o => `<option ${c.senioriteit === o ? 'selected' : ''}>${o}</option>`).join('')}</select></div>
     </div>
   </div>
   <div class="panel"><h3>Profiel & vaardigheden</h3>
@@ -620,7 +619,6 @@ async function saveCandidate() {
   c.locatie     = document.getElementById('k_loc')?.value.trim() || null;
   const reisEl  = document.getElementById('k_reis');
   c.reisbereidheid = reisEl && reisEl.value.trim() ? +reisEl.value : null;
-  c.senioriteit = document.getElementById('k_sen')?.value || c.senioriteit || 'Medior';
   c.rollen      = listFromComma('k_rollen');
   c.skills      = listFromComma('k_skills');
   c.sectoren    = listFromComma('k_sect');
