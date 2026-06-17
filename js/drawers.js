@@ -1047,7 +1047,7 @@ async function downloadMetWijzigingen() {
 
   if (!vervangingen.length) {
     // Geen wijzigingen — download origineel
-    const ab = await cvVersie.blob.arrayBuffer();
+    const ab = cvVersie.blob instanceof ArrayBuffer ? cvVersie.blob : await cvVersie.blob.arrayBuffer();
     const uri = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + arrayBufferToBase64(ab);
     const a = document.createElement('a');
     a.href = uri;

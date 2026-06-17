@@ -90,7 +90,7 @@ const DB = {
     const path = 'bronCV/' + kandidaatId + '.docx';
     const { data, error } = await sb.storage.from('cv-bestanden').download(path);
     if (error || !data) return null;
-    return await data.arrayBuffer();
+    return data; // Blob
   },
 
   // concepten
@@ -205,6 +205,6 @@ const DB = {
     const path = 'rolcv/' + kandidaatId + '/' + roltype.replace(/\s+/g, '_') + '.docx';
     const { data, error } = await sb.storage.from('cv-bestanden').download(path);
     if (error || !data) return null;
-    return await data.arrayBuffer();
+    return data; // Blob
   }
 };
