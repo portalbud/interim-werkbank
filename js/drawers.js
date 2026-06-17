@@ -500,7 +500,7 @@ function buildCandidateForm(c) {
     <div class="two-col">
       <div class="field"><label>Naam *</label><input id="k_naam" value="${esc(c.naam)}"></div>
       <div class="field"><label>E-mail</label><input id="k_email" value="${esc(c.email || '')}"></div>
-      <div class="field"><label>Beschikbaar vanaf</label><input id="k_besch" value="${esc(c.beschikbaar || '')}" placeholder="2026-07-01"></div>
+      <div class="field"><label>Beschikbaar vanaf</label><input type="date" id="k_besch" value="${esc(c.beschikbaar || '')}"></div>
       <div class="field"><label>Tarief EUR/uur</label><input id="k_tarief" value="${esc(c.tarief || '')}"></div>
       <div class="field"><label>Locatie</label><input id="k_loc" value="${esc(c.locatie || '')}"></div>
       <div class="field"><label>Reisbereidheid (km)</label><input id="k_reis" value="${esc(c.reisbereidheid || 60)}"></div>
