@@ -750,9 +750,11 @@ function buildKanaalBlok(k) {
   h += '<div class="field"><label>Deadline</label><input id="kk_dl_' + k.id + '" value="' + esc(k.deadline || '') + '" onchange="updateKanaal(' + k.id + ',&quot;deadline&quot;,this.value)"></div>';
   h += '</div>';
   if (k.kandidaat_id) {
-    h += '<div style="display:flex;gap:7px;flex-wrap:wrap">';
-    h += '<button class="btn ghost sm" onclick="window._genereerKanaalCV(this.dataset.id)" data-id=' + k.id + '>CV genereren</button>';
-    h += '<button class="btn ghost sm" onclick="window._genereerKanaalMail(this.dataset.id)" data-id=' + k.id + '>Mail opstellen</button>';
+    const cand = CANDIDATES.find(c => c.id === k.kandidaat_id);
+    const heeftCV = !!(cand?.cv_bron?.tekst || cand?.cv_bron?.opgeslagen);
+    h += '<div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center">';
+    h += '<button class="btn ghost sm" onclick="window._genereerKanaalCV(this.dataset.id)" data-id=' + k.id + '>CV + Mail klaarzetten</button>';
+    if (!heeftCV) h += '<span style="font-size:11.5px;color:var(--rust)">⚠ Geen bron-CV — upload via Team & CV</span>';
     if (k.notitie) h += '<span style="font-size:11.5px;color:var(--slate);align-self:center">' + esc(k.notitie) + '</span>';
     h += '</div>';
   }

@@ -2,7 +2,7 @@
 
 const VIEW_TITLES = {
   vandaag: 'Vandaag',
-  rollen: 'Rollen',
+  rollen: 'Aanvragen',
   team: 'Team & CV',
   instellingen: 'Instellingen'
 };
@@ -154,7 +154,7 @@ function kanaalStatusPill(status) {
 function renderRollenView() {
   const el = document.getElementById('view');
   if (!ROLLEN.length) {
-    el.innerHTML = '<div class="empty"><div class="big">Nog geen rollen</div>Voeg een rol toe via de knop rechtsboven of upload mails via Vandaag.</div>';
+    el.innerHTML = '<div class="empty"><div class="big">Nog geen aanvragen</div>Voeg een rol toe via de knop rechtsboven of upload mails via Vandaag.</div>';
     return;
   }
   const open = ROLLEN.filter(r => r.status === 'open');

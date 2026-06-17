@@ -174,7 +174,8 @@ async function genereerKanaalMailTekst(rol, cand) {
 5. Sluit af met de opgegeven ondertekening.
 Antwoord ALLEEN geldige JSON.`;
 
-  const usr = `AFZENDER: ${s.afzender_naam||'[naam]'}${s.afzender_functie?', '+s.afzender_functie:''}${s.bedrijf?', '+s.bedrijf:''}${s.afzender_telefoon?' · '+s.afzender_telefoon:''}
+  const usr = `STIJL: ${s.stijlinstructie||'Professioneel, concreet, kort.'}
+AFZENDER: ${s.afzender_naam||'[naam]'}${s.afzender_functie?', '+s.afzender_functie:''}${s.bedrijf?', '+s.bedrijf:''}${s.afzender_telefoon?' · '+s.afzender_telefoon:''}
 ONDERTEKENING: ${s.ondertekening||'Met vriendelijke groet,'}
 
 ROL: ${rol.functietitel}${rol.klant?' bij '+rol.klant:''}${rol.locatie?' | '+rol.locatie:''}
