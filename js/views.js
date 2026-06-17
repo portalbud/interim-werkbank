@@ -1,6 +1,7 @@
 // ── View router ───────────────────────────────────────────────────────────────
 
 const VIEW_TITLES = {
+  dashboard: 'Dashboard',
   vandaag: 'Vandaag',
   rollen: 'Aanvragen',
   team: 'Team & CV',
@@ -25,6 +26,7 @@ function renderTopActions(v) {
 
 function renderView() {
   updateBadges();
+  if (activeView === 'dashboard')     { renderDashboard(); return; }
   if (activeView === 'vandaag')       { renderVandaag(); return; }
   if (activeView === 'rollen')        { renderRollenView(); return; }
   if (activeView === 'team')          { renderTeamView(); return; }
@@ -33,6 +35,130 @@ function renderView() {
   if (['dashboard','mails','dagverwerking','portalbuddy'].includes(activeView)) { renderVandaag(); return; }
   if (['aanvragen','concepten'].includes(activeView)) { renderRollenView(); return; }
   if (['kandidaten','kalender'].includes(activeView)) { renderTeamView(); return; }
+}
+
+// ── Dashboard view ────────────────────────────────────────────────────────────
+
+function renderDashboard() {
+  const el = document.getElementById('view');
+  const nu = new Date();
+  const over7 = new Date(nu.getFullYear(), nu.getMonth(), nu.getDate() + 7);
+
+  const statussen = ['nieuw', 'in_behandeling', 'verstuurd', 'gewonnen', 'afgewezen'];
+  const labels    = { nieuw: 'Nieuw', in_behandeling: 'In behandeling', verstuurd: 'Verstuurd', gewonnen: 'Gewonnen', afgewezen: 'Afgewezen' };
+  const kleuren   = {
+    nieuw:         { bg: 'var(--white)',   clr: 'var(--slate)',    border: 'var(--line)' },
+    in_behandeling:{ bg: '#e3eee4',        clr: 'var(--moss-deep)',border: '#a9c4ad' },
+    verstuurd:     { bg: '#fbf3df',        clr: '#8a6a18',         border: '#d9c08a' },
+    gewonnen:      { bg: '#2f4733',        clr: '#fff',            border: '#2f4733' },
+    afgewezen:     { bg: '#f6e4dc',        clr: '#7a3520',         border: '#dba893' }
+  };
+
+  const counts = {};
+  statussen.forEach(s => counts[s] = KANALEN.filter(k => k.status === s).length);
+
+  // ── Block 1: Pipeline ─────────────────────────────────────────────────────
+  let h = '<div class="section-label" style="margin-top:0">Pipeline</div>';
+  h += '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:12px">';
+  statussen.forEach(s => {
+    const k = kleuren[s];
+    h += `<div style="border:1px solid ${k.border};border-radius:10px;padding:16px;background:${k.bg};text-align:center">
+      <div style="font-size:30px;font-weight:700;color:${k.clr};font-family:var(--mono)">${counts[s]}</div>
+      <div style="font-size:10px;color:${k.clr};opacity:.85;margin-top:5px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em">${labels[s]}</div>
+    </div>`;
+  });
+  h += '</div>';
+
+  if (counts['gewonnen'] + counts['afgewezen'] > 0) {
+    const winRate = Math.round(counts['gewonnen'] / (counts['gewonnen'] + counts['afgewezen']) * 100);
+    h += `<div style="margin-bottom:24px;font-size:12.5px;color:var(--ink-soft)">
+      Win rate: <b style="color:var(--moss-deep)">${winRate}%</b>
+      <span style="color:var(--line);margin:0 6px">·</span>
+      ${counts['gewonnen']} gewonnen van ${counts['gewonnen'] + counts['afgewezen']} afgerond
+    </div>`;
+  } else {
+    h += '<div style="margin-bottom:24px"></div>';
+  }
+
+  // ── Block 2: Deadlines komende 7 dagen ────────────────────────────────────
+  const deadlines = KANALEN
+    .filter(k => {
+      if (!k.deadline || k.status === 'gewonnen' || k.status === 'afgewezen') return false;
+      return new Date(k.deadline) <= over7;
+    })
+    .sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
+
+  h += `<div class="section-label">Deadlines komende 7 dagen (${deadlines.length})</div>`;
+  if (!deadlines.length) {
+    h += '<div class="card" style="padding:14px 16px;font-size:12.5px;color:var(--slate);margin-bottom:24px">Geen deadlines de komende week.</div>';
+  } else {
+    h += '<div class="card" style="margin-bottom:24px">';
+    deadlines.forEach(k => {
+      const rol  = ROLLEN.find(r => r.id === k.rol_id);
+      const cand = CANDIDATES.find(c => c.id === k.kandidaat_id);
+      const dl   = dlInfo(k.deadline);
+      h += `<div class="row" onclick="window._openRol('${k.rol_id}')" style="cursor:pointer">
+        <div class="body">
+          <div class="title">${esc(rol?.functietitel || '?')} <span style="font-size:12px;color:var(--slate);font-weight:400">via ${esc(k.broker_naam)}</span></div>
+          <div class="meta">${cand ? esc(cand.naam) : '<span style="color:var(--rust)">geen kandidaat</span>'}${k.opgepakt_door ? ' · ' + esc(k.opgepakt_door) : ''}</div>
+        </div>
+        <div class="right">
+          ${kanaalStatusPill(k.status)}
+          <span class="dl${dl.days <= 1 ? ' soon' : ''}">${dl.txt}</span>
+        </div>
+      </div>`;
+    });
+    h += '</div>';
+  }
+
+  // ── Block 3: Per teamlid ──────────────────────────────────────────────────
+  h += '<div class="section-label">Per teamlid</div>';
+
+  if (!TEAMLEDEN.length) {
+    h += '<div class="card" style="padding:14px 16px;font-size:12.5px;color:var(--slate)">Geen teamleden ingesteld. Voeg teamleden toe via Instellingen.</div>';
+  } else {
+    h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">';
+
+    TEAMLEDEN.forEach(t => {
+      const eigen  = KANALEN.filter(k => k.opgepakt_door === t.naam);
+      const actief = eigen.filter(k => k.status !== 'gewonnen' && k.status !== 'afgewezen');
+      h += `<div class="card" style="padding:14px 16px">
+        <div style="font-weight:700;font-size:14px;margin-bottom:10px">${esc(t.naam)}</div>`;
+      if (!eigen.length) {
+        h += '<div style="font-size:12px;color:var(--slate)">Niets opgepakt</div>';
+      } else {
+        h += '<div style="display:flex;flex-direction:column;gap:6px">';
+        statussen.forEach(s => {
+          const n = eigen.filter(k => k.status === s).length;
+          if (!n) return;
+          const kl = kleuren[s];
+          h += `<div style="display:flex;align-items:center;gap:8px">
+            <span style="width:10px;height:10px;border-radius:50%;background:${kl.bg};border:1.5px solid ${kl.border};flex-shrink:0"></span>
+            <span style="font-size:12.5px;flex:1;color:var(--ink)">${labels[s]}</span>
+            <span style="font-size:13px;font-family:var(--mono);font-weight:700">${n}</span>
+          </div>`;
+        });
+        h += `</div>
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-soft)">
+          ${actief.length} actief · ${eigen.length} totaal
+        </div>`;
+      }
+      h += '</div>';
+    });
+
+    const nietOpgepakt = KANALEN.filter(k => !k.opgepakt_door && k.status !== 'gewonnen' && k.status !== 'afgewezen').length;
+    if (nietOpgepakt > 0) {
+      h += `<div class="card" style="padding:14px 16px;border-color:var(--rust)">
+        <div style="font-weight:700;font-size:14px;margin-bottom:6px;color:var(--rust)">Niet opgepakt</div>
+        <div style="font-size:30px;font-weight:700;font-family:var(--mono)">${nietOpgepakt}</div>
+        <div style="font-size:12px;color:var(--slate);margin-top:4px">kanalen zonder toewijzing</div>
+      </div>`;
+    }
+
+    h += '</div>';
+  }
+
+  el.innerHTML = h;
 }
 
 // ── Vandaag view ──────────────────────────────────────────────────────────────
