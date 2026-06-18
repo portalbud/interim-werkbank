@@ -99,6 +99,27 @@ Sorteer aflopend score. Alleen score>=25.`;
     .filter(m => m.candidate);
 }
 
+// ── Matching op Rol-niveau ────────────────────────────────────────────────────
+
+async function runMatchingVoorRol(rol) {
+  const sys = `Je bent een matching-specialist interim-bureau. Geef per professional een eerlijke score 0-100 op basis van de rolbeschrijving. Knock-out eisen die ontbreken verlagen de score sterk. Antwoord ALLEEN geldige JSON.`;
+  const cs = CANDIDATES.map(c =>
+    `[${c.id}] ${c.naam} | rollen:${(c.rollen||[]).join(',')} | skills:${(c.skills||[]).join(',')} | sectoren:${(c.sectoren||[]).join(',')} | locatie:${c.locatie||'?'} reisbereid ${c.reisbereidheid||60}km | €${c.tarief||'?'}/u | beschikbaar ${c.beschikbaar||'?'}${c.profiel ? ' | profiel: '+c.profiel.slice(0,200) : ''}`
+  ).join('\n');
+  const usr = `ROL: ${rol.functietitel}${rol.klant ? ' bij ' + rol.klant : ''} | locatie: ${rol.locatie||'?'} | ${rol.uren_per_week||'?'}u/week
+${rol.omschrijving ? 'Omschrijving:\n' + rol.omschrijving.slice(0, 1500) : ''}
+
+PROFESSIONALS:\n${cs}
+
+Geef JSON:
+{"matches":[{"candidate_id":"","score":0,"pro":["str"],"risico":["str"],"eisen_afgedekt":["str"],"ontbreekt":["str"]}]}
+Sorteer aflopend op score. Neem alleen professionals op met score >= 25.`;
+  const r = pj(await claude(sys, usr, 2400));
+  return (r.matches || [])
+    .map(m => ({ ...m, candidate: CANDIDATES.find(c => c.id === m.candidate_id) }))
+    .filter(m => m.candidate);
+}
+
 // ── CV herschrijven ───────────────────────────────────────────────────────────
 
 async function rewriteCV(req, cand) {

@@ -724,6 +724,20 @@ function buildRolDrawerHtml(rol, kanalen) {
     h += '</div><button class="btn sm" onclick="voegKanaalToe(this.dataset.id)" data-id=' + rol.id + '>Kanaal toevoegen</button>';
     h += '</div></div>';
 
+    // ── Matching ──────────────────────────────────────────────────────────────
+    const rolMatches = (window._rolMatches || {})[rol.id] || [];
+    h += '<div class="panel"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
+    h += '<h3 style="margin:0">Match professionals</h3>';
+    if (rolMatches.length) h += '<button class="btn ghost sm" onclick="matchProfessionalsVoorRol(\'' + rol.id + '\',true)">Opnieuw matchen</button>';
+    h += '</div>';
+    if (!rolMatches.length) {
+      h += '<button class="btn" onclick="matchProfessionalsVoorRol(\'' + rol.id + '\')">Matchen met Claude (' + CANDIDATES.length + ' professionals)</button>';
+      h += '<p style="font-size:12px;color:var(--slate);margin-top:8px">Claude vergelijkt de rolbeschrijving met alle professionals en geeft scores met onderbouwing.</p>';
+    } else {
+      h += renderRolMatches(rol, kanalen, rolMatches);
+    }
+    h += '</div>';
+
     h += '<div class="panel"><h3>Gerelateerde rollen</h3>';
     h += '<button class="btn ghost sm" onclick="window._checkDup(this.dataset.id)" data-id=' + rol.id + '>Controleer op vergelijkbare rollen</button>';
     h += '<div id="dup_rollen_result" style="margin-top:10px"></div></div>';
@@ -843,6 +857,86 @@ async function verwijderRol(id) {
   KANALEN = await DB.getKanalen();
   updateBadges(); renderRollenView();
   toast('Rol verwijderd.');
+}
+
+async function matchProfessionalsVoorRol(rolId, force) {
+  const rol = ROLLEN.find(r => r.id === rolId);
+  if (!rol) return;
+  if (!claudeKey()) { toast('Vul je Claude API-sleutel in.'); return; }
+  if (!CANDIDATES.length) { toast('Geen professionals beschikbaar om te matchen.'); return; }
+
+  toast('Matchen met ' + CANDIDATES.length + ' professionals…', true);
+  try {
+    const matches = await runMatchingVoorRol(rol);
+    window._rolMatches = window._rolMatches || {};
+    window._rolMatches[rolId] = matches;
+    toast('Matching klaar — ' + matches.length + ' professionals gerankt.');
+    await openRolDrawer(rolId);
+  } catch(e) { toast('Fout bij matchen: ' + e.message); }
+}
+
+function renderRolMatches(rol, kanalen, matches) {
+  if (!matches.length) return '<p style="font-size:12.5px;color:var(--slate)">Geen professionals met score ≥ 25.</p>';
+
+  return matches.map((m, i) => {
+    const c = m.candidate;
+    if (!c) return '';
+    const cls = m.score >= 70 ? '' : m.score >= 45 ? 'mid' : 'low';
+
+    // Bepaal of deze professional al aan een kanaal is toegewezen voor deze rol
+    const toegewezenKanaal = kanalen.find(k => k.kandidaat_id === c.id);
+
+    // Kanalen zonder kandidaat (voor toewijzing)
+    const vrijeKanalen = kanalen.filter(k => !k.kandidaat_id);
+
+    let toewijzingHtml = '';
+    if (toegewezenKanaal) {
+      toewijzingHtml = `<span style="font-size:11.5px;color:var(--moss);font-family:var(--mono)">✓ Toegewezen aan ${esc(toegewezenKanaal.broker_naam)}</span>`;
+    } else if (kanalen.length === 0) {
+      toewijzingHtml = `<span style="font-size:11.5px;color:var(--slate)">Voeg eerst een kanaal toe om toe te wijzen</span>`;
+    } else if (vrijeKanalen.length === 1) {
+      toewijzingHtml = `<button class="btn sm" onclick="wijsToeAanKanaal('${vrijeKanalen[0].id}','${c.id}','${rol.id}')">Toewijzen aan ${esc(vrijeKanalen[0].broker_naam)}</button>`;
+    } else if (vrijeKanalen.length > 1) {
+      toewijzingHtml = `<select id="keuze_kanaal_${i}" style="border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:12px">
+        <option value="">— kies kanaal —</option>
+        ${vrijeKanalen.map(k => `<option value="${k.id}">${esc(k.broker_naam)}</option>`).join('')}
+      </select>
+      <button class="btn sm" onclick="wijsToeVanSelect('keuze_kanaal_${i}','${c.id}','${rol.id}')">Toewijzen</button>`;
+    } else {
+      toewijzingHtml = `<span style="font-size:11.5px;color:var(--slate)">Alle kanalen al toegewezen</span>`;
+    }
+
+    return `<div class="match" style="margin-bottom:14px">
+      <div class="match-top">
+        <div class="score-ring ${cls}" style="--p:${m.score}"><span>${m.score}</span></div>
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:14px">${esc(c.naam)}</div>
+          <div style="font-size:12px;color:var(--ink-soft)">${(c.rollen||[]).join(' · ')}${c.tarief ? ' · €'+c.tarief+'/u' : ''}${c.beschikbaar ? ' · beschikbaar '+c.beschikbaar : ''}</div>
+        </div>
+      </div>
+      <div class="reasoning">
+        <div class="col pro"><h4>Passend</h4><ul>${(m.pro||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>
+        <div class="col risk"><h4>Risico</h4><ul>${(m.risico||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>
+        <div class="col covered"><h4>Afgedekt</h4><ul>${(m.eisen_afgedekt||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>
+        <div class="col missing"><h4>Ontbreekt</h4><ul>${(m.ontbreekt||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+        ${toewijzingHtml}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function wijsToeAanKanaal(kanaalId, candId, rolId) {
+  await updateKanaal(kanaalId, 'kandidaat_id', candId);
+  toast('Professional toegewezen.');
+  await openRolDrawer(rolId);
+}
+
+async function wijsToeVanSelect(selectId, candId, rolId) {
+  const kanaalId = document.getElementById(selectId)?.value;
+  if (!kanaalId) { toast('Selecteer een kanaal.'); return; }
+  await wijsToeAanKanaal(kanaalId, candId, rolId);
 }
 
 async function checkDuplicaatRollen(rolId) {
