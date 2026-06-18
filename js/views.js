@@ -353,49 +353,91 @@ function renderTeamView() {
 
 function renderKandidaten() {
   if (!CANDIDATES.length) return '<div class="empty"><div class="big">Nog geen kandidaten</div>Voeg een kandidaat toe of upload meerdere CVs tegelijk via de knop rechtsboven.</div>';
-  let h = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px">';
-  CANDIDATES.forEach(c => {
-    const hasBron = !!(c.cv_bron?.tekst);
-    const kalEntries = KALENDER.filter(e => e.kandidaat_id === c.id);
-    const beschikbaarLabel = kalEntries.length
-      ? kalEntries.map(e => MAAND_NAMEN[e.maand - 1] + ' ' + e.jaar + (e.rol ? ' (' + e.rol + ')' : '')).join(', ')
-      : (c.beschikbaar || 'onbekend');
-    const nuDate = new Date();
-    const beschikbaarDt = c.beschikbaar ? new Date(c.beschikbaar) : null;
-    const isBeschikbaar = beschikbaarDt && beschikbaarDt <= new Date(nuDate.getFullYear(), nuDate.getMonth() + 1, 1);
-    const statusKleur = isBeschikbaar ? 'background:#e3eee4;color:#2f4733;border-color:#a9c4ad' : 'background:#fbf3df;color:#8a6a18;border-color:#d9c08a';
-    const statusLabel = isBeschikbaar ? 'Beschikbaar' : 'Ingepland';
 
-    h += '<div class="card" style="overflow:visible">';
-    h += '<div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;gap:10px">';
-    h += '<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:15px;margin-bottom:2px">' + esc(c.naam) + '</div>';
-    h += '<div style="font-size:12px;color:var(--ink-soft)">' + esc(c.senioriteit) + ' · EUR ' + esc(c.tarief || '?') + '/u · ' + esc(c.locatie || '?') + '</div></div>';
-    h += '<span style="font-size:11px;padding:3px 9px;border-radius:20px;border:1px solid;white-space:nowrap;' + statusKleur + '">' + statusLabel + '</span>';
-    h += '</div>';
+  const nu = new Date();
+  const f  = window._candFilter || {};
+  const zoek        = f.zoek   || '';
+  const statusFilter= f.status || 'alles';
+  const rolFilter   = f.rol    || 'alles';
 
-    h += '<div style="padding:10px 16px;border-bottom:1px solid var(--paper-2);font-size:12px;display:flex;gap:6px;align-items:center">';
-    h += '<span style="color:var(--ink-soft);font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.08em">Beschikbaar</span>';
-    h += '<span style="font-weight:600">' + esc(beschikbaarLabel) + '</span>';
-    h += '</div>';
+  const alleRollen = [...new Set(CANDIDATES.flatMap(c => c.rollen || []))].sort();
 
-    h += '<div style="padding:10px 16px;border-bottom:1px solid var(--paper-2)" id="rolcv_kaart_' + c.id + '">';
-    h += '<div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);margin-bottom:8px">CV versies per rol</div>';
-    h += '<div id="rolcv_kaart_items_' + c.id + '"><div style="font-size:12px;color:var(--slate)">Laden...</div></div>';
-    h += '</div>';
-
-    h += '<div style="padding:10px 16px;border-bottom:1px solid var(--paper-2)"><div class="chips">' + ((c.skills || []).slice(0, 8).map(s => '<span class="chip">' + esc(s) + '</span>').join('')) + '</div></div>';
-
-    h += '<div style="padding:10px 16px;display:flex;gap:7px;flex-wrap:wrap">';
-    h += '<button class="btn ghost sm" onclick="openCandidateDrawer(&quot;' + c.id + '&quot;)">Bewerken</button>';
-    if (hasBron) h += '<button class="btn ghost sm" onclick="quickViewCV(&quot;' + c.id + '&quot;)">CV bekijken</button>';
-    h += '<button class="btn danger sm" style="margin-left:auto" onclick="verwijderKandidaat(&quot;' + c.id + '&quot;,&quot;' + esc(c.naam) + '&quot;)">Verwijderen</button>';
-    h += '</div></div>';
+  const filtered = CANDIDATES.filter(c => {
+    if (zoek && !c.naam.toLowerCase().includes(zoek.toLowerCase())) return false;
+    const dt = c.beschikbaar ? new Date(c.beschikbaar) : null;
+    const isBeschikbaar = dt && dt <= new Date(nu.getFullYear(), nu.getMonth() + 1, 1);
+    if (statusFilter === 'beschikbaar' && !isBeschikbaar) return false;
+    if (statusFilter === 'ingepland'   &&  isBeschikbaar) return false;
+    if (rolFilter !== 'alles' && !(c.rollen || []).includes(rolFilter)) return false;
+    return true;
   });
-  h += '</div>';
 
-  setTimeout(() => {
-    CANDIDATES.forEach(c => { if (!c.id.startsWith('c_')) laadRolCVKaart(c.id); });
-  }, 100);
+  // ── Filterbar ─────────────────────────────────────────────────────────────
+  let h = `<div style="display:flex;gap:9px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+    <input type="text" placeholder="Zoeken op naam…" value="${esc(zoek)}"
+      oninput="window._candFilter={...(window._candFilter||{}),zoek:this.value};renderTeamView()"
+      style="flex:1;min-width:160px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:var(--white)">
+    <select onchange="window._candFilter={...(window._candFilter||{}),status:this.value};renderTeamView()"
+      style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:var(--white)">
+      <option value="alles"        ${statusFilter==='alles'        ?'selected':''}>Alle statussen</option>
+      <option value="beschikbaar"  ${statusFilter==='beschikbaar'  ?'selected':''}>Beschikbaar</option>
+      <option value="ingepland"    ${statusFilter==='ingepland'    ?'selected':''}>Ingepland</option>
+    </select>
+    ${alleRollen.length ? `<select onchange="window._candFilter={...(window._candFilter||{}),rol:this.value};renderTeamView()"
+      style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:var(--white)">
+      <option value="alles" ${rolFilter==='alles'?'selected':''}>Alle rollen</option>
+      ${alleRollen.map(r => `<option value="${esc(r)}" ${rolFilter===r?'selected':''}>${esc(r)}</option>`).join('')}
+    </select>` : ''}
+    <span style="font-size:12px;color:var(--ink-soft);white-space:nowrap">${filtered.length} van ${CANDIDATES.length}</span>
+  </div>`;
+
+  if (!filtered.length) return h + '<div class="empty"><div class="big">Geen resultaten</div>Pas de filters aan.</div>';
+
+  // ── Tabel ─────────────────────────────────────────────────────────────────
+  h += `<div class="card" style="overflow:hidden">
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead>
+        <tr style="border-bottom:2px solid var(--line)">
+          ${['Naam','Rollen','Tarief','Locatie','Beschikbaar','Status','CV',''].map(t =>
+            `<th style="padding:9px 14px;text-align:left;font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);font-weight:600;white-space:nowrap">${t}</th>`
+          ).join('')}
+        </tr>
+      </thead>
+      <tbody>`;
+
+  filtered.forEach(c => {
+    const dt = c.beschikbaar ? new Date(c.beschikbaar) : null;
+    const isBeschikbaar = dt && dt <= new Date(nu.getFullYear(), nu.getMonth() + 1, 1);
+    const sBg     = isBeschikbaar ? '#e3eee4'      : '#fbf3df';
+    const sClr    = isBeschikbaar ? '#2f4733'      : '#8a6a18';
+    const sBorder = isBeschikbaar ? '#a9c4ad'      : '#d9c08a';
+    const sLabel  = isBeschikbaar ? 'Beschikbaar'  : 'Ingepland';
+    const hasBron = !!(c.cv_bron?.tekst || c.cv_bron?.opgeslagen);
+
+    h += `<tr style="border-bottom:1px solid var(--paper-2);cursor:pointer"
+        onclick="openCandidateDrawer('${c.id}')"
+        onmouseover="this.style.background='var(--paper-2)'"
+        onmouseout="this.style.background=''">
+      <td style="padding:10px 14px;font-weight:600">${esc(c.naam)}</td>
+      <td style="padding:10px 14px;color:var(--ink-soft);font-size:12px">${esc((c.rollen||[]).join(' · '))||'—'}</td>
+      <td style="padding:10px 14px;font-family:var(--mono);font-size:12px;white-space:nowrap">€${c.tarief||'?'}/u</td>
+      <td style="padding:10px 14px;color:var(--ink-soft)">${esc(c.locatie||'—')}</td>
+      <td style="padding:10px 14px;font-family:var(--mono);font-size:12px;white-space:nowrap">${c.beschikbaar||'—'}</td>
+      <td style="padding:10px 14px">
+        <span style="font-size:11px;padding:3px 9px;border-radius:20px;border:1px solid ${sBorder};background:${sBg};color:${sClr};white-space:nowrap">${sLabel}</span>
+      </td>
+      <td style="padding:10px 14px">
+        ${hasBron
+          ? '<span style="font-size:11px;background:var(--paper-2);border:1px solid var(--line);padding:2px 7px;border-radius:4px;font-family:var(--mono)">✓ bron</span>'
+          : '<span style="font-size:11px;color:var(--slate)">—</span>'}
+      </td>
+      <td style="padding:10px 14px;text-align:right">
+        <button class="btn ghost sm" onclick="event.stopPropagation();openCandidateDrawer('${c.id}')">Bewerken</button>
+      </td>
+    </tr>`;
+  });
+
+  h += '</tbody></table></div>';
   return h;
 }
 
