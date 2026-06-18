@@ -650,7 +650,7 @@ async function saveCandidate() {
       }
       KALENDER = await DB.getKalender();
     }
-    toast('Kandidaat opgeslagen.'); closeDrawer(); setView('team');
+    toast('Kandidaat opgeslagen.'); closeDrawer(); setView('professionals');
   } catch(e) { toast('Fout bij opslaan: ' + e.message); }
 }
 
@@ -659,7 +659,7 @@ async function deleteCandidate(id) {
   await DB.deleteKandidaat(id);
   CANDIDATES = await DB.getKandidaten();
   CANDIDATES.forEach(herstelRawBlob);
-  toast('Verwijderd.'); closeDrawer(); setView('team');
+  toast('Verwijderd.'); closeDrawer(); setView('professionals');
 }
 
 // ── Rol drawer ────────────────────────────────────────────────────────────────
@@ -718,7 +718,7 @@ function buildRolDrawerHtml(rol, kanalen) {
     h += '<div class="field"><label>Broker / Partij</label><input id="nk_broker" placeholder="Hero, Striive, Randstad..."></div>';
     h += '<div class="field"><label>Type</label><select id="nk_type"><option value="mail">Mail</option><option value="portal">Portal</option><option value="telefoon">Telefoon / Appje</option></select></div>';
     h += '<div class="field"><label>Portal URL (optioneel)</label><input id="nk_url" placeholder="https://..."></div>';
-    h += '<div class="field"><label>Deadline</label><input type="date" id="nk_deadline"></div>';
+    h += '<div class="field"><label>Deadline *</label><input type="date" id="nk_deadline"></div>';
     h += '<div class="field"><label>Opgepakt door</label><select id="nk_opgepakt"><option value="">- niemand -</option>' + TEAMLEDEN.map(t => '<option>' + esc(t.naam) + '</option>').join('') + '</select></div>';
     h += '<div class="field"><label>Kandidaat</label><select id="nk_kandidaat"><option value="">- nog niet gekozen -</option>' + CANDIDATES.map(c => '<option value="' + c.id + '">' + esc(c.naam) + '</option>').join('') + '</select></div>';
     h += '</div><button class="btn sm" onclick="voegKanaalToe(this.dataset.id)" data-id=' + rol.id + '>Kanaal toevoegen</button>';
@@ -788,6 +788,8 @@ async function saveRol() {
 async function voegKanaalToe(rolId) {
   const broker = document.getElementById('nk_broker')?.value.trim();
   if (!broker) { toast('Vul een broker/partij naam in.'); return; }
+  const deadline = document.getElementById('nk_deadline')?.value;
+  if (!deadline) { toast('Deadline is verplicht.'); return; }
   const k = {
     rol_id: rolId,
     broker_naam: broker,

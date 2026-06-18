@@ -4,7 +4,8 @@ const VIEW_TITLES = {
   dashboard: 'Dashboard',
   vandaag: 'Vandaag',
   rollen: 'Aanvragen',
-  team: 'Team & CV',
+  professionals: 'Professionals',
+  kalender: 'Kalender',
   instellingen: 'Instellingen'
 };
 
@@ -20,7 +21,7 @@ function renderTopActions(v) {
   const el = document.getElementById('topActions');
   if (v === 'vandaag')      el.innerHTML = '';
   else if (v === 'rollen')  el.innerHTML = '<button class="btn ghost sm" onclick="openRolDrawer(null)">+ Nieuwe rol</button>';
-  else if (v === 'team')    el.innerHTML = '<button class="btn ghost sm" onclick="openCandidateDrawer(null)">+ Nieuwe collega</button><button class="btn sm" style="margin-left:8px" onclick="openBatchUpload()">Batch CV upload</button>';
+  else if (v === 'professionals') el.innerHTML = '<button class="btn ghost sm" onclick="openCandidateDrawer(null)">+ Nieuwe professional</button><button class="btn sm" style="margin-left:8px" onclick="openBatchUpload()">Batch CV upload</button>';
   else                      el.innerHTML = '';
 }
 
@@ -29,12 +30,13 @@ function renderView() {
   if (activeView === 'dashboard')     { renderDashboard(); return; }
   if (activeView === 'vandaag')       { renderVandaag(); return; }
   if (activeView === 'rollen')        { renderRollenView(); return; }
-  if (activeView === 'team')          { renderTeamView(); return; }
+  if (activeView === 'professionals')  { renderProfessionalsView(); return; }
+  if (activeView === 'kalender')       { renderKalenderView(); return; }
   if (activeView === 'instellingen')  { renderInstellingen(); return; }
   // Legacy redirects
   if (['dashboard','mails','dagverwerking','portalbuddy'].includes(activeView)) { renderVandaag(); return; }
   if (['aanvragen','concepten'].includes(activeView)) { renderRollenView(); return; }
-  if (['kandidaten','kalender'].includes(activeView)) { renderTeamView(); return; }
+  if (['kandidaten','team'].includes(activeView)) { renderProfessionalsView(); return; }
 }
 
 // ── Dashboard view ────────────────────────────────────────────────────────────
@@ -337,14 +339,21 @@ function rolKaart(rol, gedimmd = false) {
   return h;
 }
 
-// ── Team view ─────────────────────────────────────────────────────────────────
+// ── Professionals view ────────────────────────────────────────────────────────
 
-function renderTeamView() {
+function renderProfessionalsView() {
+  const el = document.getElementById('view');
+  let h = '<div class="section-label" style="margin-top:0">Professionals (' + CANDIDATES.length + ')</div>';
+  h += renderKandidaten();
+  el.innerHTML = h;
+}
+
+// ── Kalender view ─────────────────────────────────────────────────────────────
+
+function renderKalenderView() {
   const el = document.getElementById('view');
   let h = '<div class="section-label" style="margin-top:0">Beschikbaarheidskalender</div>';
-  h += '<div id="teamKalContainer" style="margin-bottom:24px">' + buildKalenderHtml() + '</div>';
-  h += '<div class="section-label">Collegas (' + CANDIDATES.length + ')</div>';
-  h += renderKandidaten();
+  h += '<div id="teamKalContainer">' + buildKalenderHtml() + '</div>';
   el.innerHTML = h;
   wireKalender();
 }
