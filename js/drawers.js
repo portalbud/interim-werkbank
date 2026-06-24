@@ -463,9 +463,9 @@ function quickViewCV(candId) {
 
 function openCandidateDrawer(id) {
   const c = id ? CANDIDATES.find(x => x.id === id) : {
-    id: 'c_' + Date.now(), naam: '', email: '', beschikbaar: '', tarief: '',
+    id: null, naam: '', email: '', beschikbaar: '', tarief: '',
     rollen: [], skills: [], sectoren: [], locatie: '', reisbereidheid: 60,
-    senioriteit: 'Medior', profiel: '', ervaring: [], opleiding: [], motivatie: [], opmerkingen: '', cv_bron: null
+    profiel: '', ervaring: [], opleiding: [], motivatie: [], opmerkingen: '', cv_bron: null
   };
   document.getElementById('dTitle').textContent = id ? 'Kandidaat bewerken' : 'Nieuwe kandidaat';
   document.getElementById('dSub').textContent = id ? esc(c.naam) : 'Nieuw profiel toevoegen';
@@ -474,11 +474,11 @@ function openCandidateDrawer(id) {
   wireCVUpload(c);
   wireRolCVUpload(c.id);
   window._editCand = c;
-  if (c.id && !c.id.startsWith('c_')) setTimeout(() => laadRolCVLijst(c.id), 300);
+  if (c.id) setTimeout(() => laadRolCVLijst(c.id), 300);
 }
 
 function buildCandidateForm(c) {
-  const isNieuw = !c.id || c.id.startsWith('c_');
+  const isNieuw = !c.id;
   return `
   <div class="panel"><h3>CV-versies per rol</h3>
     <p style="font-size:12px;color:var(--ink-soft);margin-top:0">Upload per rol een aparte .docx. De app kiest automatisch de juiste versie bij een aanvraag.
@@ -526,7 +526,7 @@ function buildCandidateForm(c) {
 }
 
 async function laadRolCVLijst(candId) {
-  if (!candId || candId.startsWith('c_')) return;
+  if (!candId) return;
   const el = document.getElementById('rolcv_items');
   if (!el) return;
   try {
@@ -611,6 +611,7 @@ function clearBronCV() {
 
 async function saveCandidate() {
   const c = window._editCand;
+  if (!c.id) c.id = genUUID();
   c.naam        = (document.getElementById('k_naam')?.value || '').trim();
   c.email       = document.getElementById('k_email')?.value || '';
   c.beschikbaar = document.getElementById('k_besch')?.value.trim() || null;
