@@ -105,12 +105,12 @@ async function detecteerCVEisen(omschrijving) {
   if (!omschrijving || omschrijving.length < 50) return null;
   const sys = 'Je analyseert vacatureteksten op specifieke CV-format eisen of bijlageverzoeken. Antwoord ALLEEN geldige JSON.';
   const usr = `Analyseer de tekst op specifieke FORMAT- of BIJLAGE-eisen voor het CV (niet inhoudelijke eisen zoals skills of ervaring).
-Denk aan: motivatiebrief, voorblad, anoniem aanleveren, specifieke secties, taalvereiste, paginabeperking, foto wel/niet, etc.
+Denk aan: motivatiebrief, voorblad, anoniem aanleveren, specifieke secties, taalvereiste, paginabeperking, foto wel/niet, volgorde van onderdelen, etc.
 
-Geef JSON: {"eisen": [{"type": "motivatie|voorblad|anoniem|taal|paginalimiet|overig", "beschrijving": "exacte eis zoals vermeld in de tekst"}]}
+Geef JSON: {"eisen": [{"type": "motivatie|voorblad|anoniem|taal|paginalimiet|volgorde|overig", "beschrijving": "exacte eis zoals vermeld in de tekst"}]}
 Geef lege array als er GEEN format/bijlage-eisen zijn.
 
-TEKST:\n${omschrijving.slice(0, 2000)}`;
+TEKST:\n${omschrijving}`;
   const r = pj(await claude(sys, usr, 500));
   const eisen = r.eisen || [];
   return eisen.length ? eisen : null;
@@ -128,10 +128,10 @@ Rollen: ${(cand.rollen||[]).join(', ')}
 Profiel: ${cand.profiel||'(geen)'}
 Skills: ${(cand.skills||[]).join(', ')}
 Beschikbaar: ${cand.beschikbaar||'?'} | Tarief: €${cand.tarief||'?'}/u | Locatie: ${cand.locatie||'?'}
-${cand.cv_bron?.tekst ? 'CV-tekst (fragment):\n' + cand.cv_bron.tekst.slice(0, 1500) : ''}
+${cand.cv_bron?.tekst ? 'CV-tekst:\n' + cand.cv_bron.tekst : ''}
 
 ROL: ${rol.functietitel}${rol.klant ? ' bij ' + rol.klant : ''}
-${rol.omschrijving ? 'Omschrijving:\n' + rol.omschrijving.slice(0, 800) : ''}
+${rol.omschrijving ? 'Omschrijving:\n' + rol.omschrijving : ''}
 
 GEVRAAGDE TOEVOEGINGEN:\n${eisenTekst}
 
@@ -182,7 +182,7 @@ async function runMatchingVoorRol(rol) {
     `[${c.id}] ${c.naam} | rollen:${(c.rollen||[]).join(',')} | skills:${(c.skills||[]).join(',')} | sectoren:${(c.sectoren||[]).join(',')} | locatie:${c.locatie||'?'} reisbereid ${c.reisbereidheid||60}km | €${c.tarief||'?'}/u | beschikbaar ${c.beschikbaar||'?'}${c.profiel ? ' | profiel: '+c.profiel.slice(0,200) : ''}`
   ).join('\n');
   const usr = `ROL: ${rol.functietitel}${rol.klant ? ' bij ' + rol.klant : ''} | locatie: ${rol.locatie||'?'} | ${rol.uren_per_week||'?'}u/week
-${rol.omschrijving ? 'Omschrijving:\n' + rol.omschrijving.slice(0, 1500) : ''}
+${rol.omschrijving ? 'Omschrijving:\n' + rol.omschrijving : ''}
 
 PROFESSIONALS:\n${cs}
 
@@ -213,7 +213,7 @@ REGELS:
 Antwoord ALLEEN geldige JSON.`;
 
   const cvBron = cand.cv_bron?.tekst
-    ? 'BRON-CV TEKST (gebruik dit als basis voor de originele teksten):\n' + cand.cv_bron.tekst.slice(0, 6000)
+    ? 'BRON-CV TEKST (gebruik dit als basis voor de originele teksten):\n' + cand.cv_bron.tekst
     : '(geen bron-CV beschikbaar)';
 
   const usr = `AANVRAAG: ${req.functietitel} | ${req.opdrachtgever||''} | ${req.locatie||''}
@@ -275,7 +275,7 @@ AFZENDER: ${s.afzender_naam||'[naam]'}${s.afzender_functie?', '+s.afzender_funct
 ONDERTEKENING: ${s.ondertekening||'Met vriendelijke groet,'}
 
 ROL: ${rol.functietitel}${rol.klant?' bij '+rol.klant:''}${rol.locatie?' | '+rol.locatie:''}
-${rol.omschrijving?'OMSCHRIJVING: '+rol.omschrijving.slice(0,400):''}
+${rol.omschrijving?'OMSCHRIJVING: '+rol.omschrijving:''}
 
 KANDIDAAT: ${cand.naam} | ${cand.senioriteit} | €${cand.tarief||'?'}/uur | beschikbaar ${cand.beschikbaar||'?'}
 PROFIEL: ${cand.profiel||''}
@@ -504,7 +504,7 @@ ROL WAARVOOR WE VOORSTELLEN:
 ${rolBeschrijving}
 
 CV TEKST:
-${cvTekst.slice(0, 4500)}
+${cvTekst}
 
 Geef JSON:
 {
