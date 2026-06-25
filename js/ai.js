@@ -118,8 +118,14 @@ TEKST:\n${omschrijving}`;
 
 async function genereerCVToevoegingen(cand, rol, eisen) {
   const sys = `Je schrijft toevoegingen voor een interim-CV in het Nederlands. Schrijf zakelijk, concreet, geen clichés.
-Voor een motivatiebrief: schrijf in de ik-vorm, 3 alinea's, max 220 woorden. Geen overdrijving, geen verkooppraat.
-Verboden woorden: bewezen staat van dienst, aantoonbare ervaring, gedegen kennis, passie voor, gedreven, hands-on, proactief, resultaatgericht, teamplayer, toegevoegde waarde.
+
+Voor type "motivatiebrief": schrijf in de ik-vorm, 3 alinea's, max 220 woorden. Geen overdrijving, geen verkooppraat.
+
+Voor type "voorblad": schrijf een beknopt voorblad met naam van de professional, de specifieke rol, de opdrachtgever, beschikbaarheid, tarief en locatie. Daarna 3-5 regels kernprofiel die direct aansluiten op de rol.
+
+Voor type "eisen": ga elke eis en wens uit de rolbeschrijving langs. Schrijf per eis één korte alinea hoe de professional hieraan voldoet op basis van het CV. Gebruik de structuur: "Eis: [eis] — [naam] heeft/heeft niet [concrete onderbouwing uit CV]". Wees eerlijk: als iets ontbreekt, zeg dat dan ook.
+
+Verboden woorden (alle types): bewezen staat van dienst, aantoonbare ervaring, gedegen kennis, passie voor, gedreven, hands-on, proactief, resultaatgericht, teamplayer, toegevoegde waarde.
 Antwoord ALLEEN geldige JSON.`;
 
   const eisenTekst = eisen.map(e => `- ${e.type}: ${e.beschrijving}`).join('\n');
