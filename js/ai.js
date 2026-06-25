@@ -99,6 +99,81 @@ Sorteer aflopend score. Alleen score>=25.`;
     .filter(m => m.candidate);
 }
 
+// ── CV-eisen detectie + generatie ────────────────────────────────────────────
+
+async function detecteerCVEisen(omschrijving) {
+  if (!omschrijving || omschrijving.length < 50) return null;
+  const sys = 'Je analyseert vacatureteksten op specifieke CV-format eisen of bijlageverzoeken. Antwoord ALLEEN geldige JSON.';
+  const usr = `Analyseer de tekst op specifieke FORMAT- of BIJLAGE-eisen voor het CV (niet inhoudelijke eisen zoals skills of ervaring).
+Denk aan: motivatiebrief, voorblad, anoniem aanleveren, specifieke secties, taalvereiste, paginabeperking, foto wel/niet, etc.
+
+Geef JSON: {"eisen": [{"type": "motivatie|voorblad|anoniem|taal|paginalimiet|overig", "beschrijving": "exacte eis zoals vermeld in de tekst"}]}
+Geef lege array als er GEEN format/bijlage-eisen zijn.
+
+TEKST:\n${omschrijving.slice(0, 2000)}`;
+  const r = pj(await claude(sys, usr, 500));
+  const eisen = r.eisen || [];
+  return eisen.length ? eisen : null;
+}
+
+async function genereerCVToevoegingen(cand, rol, eisen) {
+  const sys = `Je schrijft toevoegingen voor een interim-CV in het Nederlands. Schrijf zakelijk, concreet, geen clichés.
+Voor een motivatiebrief: schrijf in de ik-vorm, 3 alinea's, max 220 woorden. Geen overdrijving, geen verkooppraat.
+Verboden woorden: bewezen staat van dienst, aantoonbare ervaring, gedegen kennis, passie voor, gedreven, hands-on, proactief, resultaatgericht, teamplayer, toegevoegde waarde.
+Antwoord ALLEEN geldige JSON.`;
+
+  const eisenTekst = eisen.map(e => `- ${e.type}: ${e.beschrijving}`).join('\n');
+  const usr = `PROFESSIONAL: ${cand.naam}
+Rollen: ${(cand.rollen||[]).join(', ')}
+Profiel: ${cand.profiel||'(geen)'}
+Skills: ${(cand.skills||[]).join(', ')}
+Beschikbaar: ${cand.beschikbaar||'?'} | Tarief: €${cand.tarief||'?'}/u | Locatie: ${cand.locatie||'?'}
+${cand.cv_bron?.tekst ? 'CV-tekst (fragment):\n' + cand.cv_bron.tekst.slice(0, 1500) : ''}
+
+ROL: ${rol.functietitel}${rol.klant ? ' bij ' + rol.klant : ''}
+${rol.omschrijving ? 'Omschrijving:\n' + rol.omschrijving.slice(0, 800) : ''}
+
+GEVRAAGDE TOEVOEGINGEN:\n${eisenTekst}
+
+Schrijf elke toevoeging volledig uit. Geef JSON:
+{"toevoegingen": [{"type": "str", "titel": "str", "inhoud": "volledige tekst, alineas gescheiden door \\n\\n"}]}`;
+
+  const r = pj(await claude(sys, usr, 1800));
+  return r.toevoegingen || [];
+}
+
+// ── Docx toevoegingen invoegen ────────────────────────────────────────────────
+
+function bouwWordAlineas(tekst) {
+  return tekst.split('\n\n').map(alinea => {
+    if (!alinea.trim()) return '';
+    const regels = alinea.split('\n');
+    const runs = regels.map((r, i) => {
+      const veilig = r.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      return `<w:r><w:t xml:space="preserve">${veilig}</w:t></w:r>${i < regels.length - 1 ? '<w:br/>' : ''}`;
+    }).join('');
+    return `<w:p><w:pPr><w:spacing w:after="160"/></w:pPr>${runs}</w:p>`;
+  }).filter(Boolean).join('');
+}
+
+async function voegToevoegingToeAanDocx(blob, toevoegingen) {
+  const zip = await JSZip.loadAsync(blob instanceof ArrayBuffer ? blob : await blob.arrayBuffer());
+  let xml = await zip.file('word/document.xml').async('string');
+
+  let invoegXml = '';
+  toevoegingen.forEach(t => {
+    const titelVeilig = (t.titel||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    invoegXml += `<w:p><w:pPr><w:spacing w:after="120"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="28"/></w:rPr><w:t>${titelVeilig}</w:t></w:r></w:p>`;
+    invoegXml += bouwWordAlineas(t.inhoud || '');
+    invoegXml += `<w:p><w:r><w:br w:type="page"/></w:r></w:p>`;
+  });
+
+  // Voeg in direct na <w:body>, vóór de bestaande inhoud
+  xml = xml.replace(/(<w:body>)/, '$1' + invoegXml);
+  zip.file('word/document.xml', xml);
+  return await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+}
+
 // ── Matching op Rol-niveau ────────────────────────────────────────────────────
 
 async function runMatchingVoorRol(rol) {

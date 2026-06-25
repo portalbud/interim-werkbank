@@ -1018,14 +1018,71 @@ async function genereerKanaalCV(kanaalId) {
 
     const suggesties = await analyseerCVVoorRol(cand, rolBeschrijving, cvTekst);
 
-    // Sla reviewstatus op
-    window._cvReview = { kanaalId: k.id, rolId: k.rol_id, cvVersie, cand, rol, suggesties };
+    // Detecteer CV-format eisen in de omschrijving
+    const cvEisen = rol.omschrijving ? await detecteerCVEisen(rol.omschrijving) : null;
 
-    renderCVReviewUI();
+    // Sla reviewstatus op
+    window._cvReview = { kanaalId: k.id, rolId: k.rol_id, cvVersie, cand, rol, suggesties, toevoegingen: [] };
+
+    if (cvEisen && cvEisen.length) {
+      toonCVEisenModal(cvEisen, cand, rol);
+    } else {
+      renderCVReviewUI();
+    }
   } catch(e) {
     toast('Fout bij analyseren: ' + e.message);
     await openRolDrawer(k.rol_id);
   }
+}
+
+function toonCVEisenModal(eisen, cand, rol) {
+  const bestaand = document.getElementById('cvEisenModal');
+  if (bestaand) bestaand.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'cvEisenModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px';
+
+  const eisenHtml = eisen.map(e =>
+    `<li style="margin-bottom:8px;font-size:13.5px"><b>${esc(e.type.charAt(0).toUpperCase()+e.type.slice(1))}:</b> ${esc(e.beschrijving)}</li>`
+  ).join('');
+
+  modal.innerHTML = `
+    <div style="background:var(--paper);border-radius:14px;padding:32px 36px;max-width:480px;width:100%;box-shadow:0 12px 48px rgba(0,0,0,.35)">
+      <div style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.1em;color:var(--moss);margin-bottom:10px">CV-format eisen gevonden</div>
+      <h3 style="margin:0 0 14px;font-size:17px">Deze aanvraag vraagt om extra toevoegingen</h3>
+      <ul style="margin:0 0 22px;padding-left:18px;color:var(--ink)">${eisenHtml}</ul>
+      <p style="font-size:12.5px;color:var(--ink-soft);margin-bottom:22px">Wil je dat ik deze toevoegingen schrijf en meeneem in de CV-review?</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn" id="cvEisenJa" style="flex:1">Ja, toevoegingen genereren</button>
+        <button class="btn ghost" id="cvEisenNee" style="flex:1">Nee, alleen CV aanpassen</button>
+      </div>
+      <div id="cvEisenLaad" style="display:none;text-align:center;padding:16px 0;font-size:13px;color:var(--ink-soft)">
+        <span class="spin" style="margin-right:8px"></span>Toevoegingen schrijven…
+      </div>
+    </div>`;
+
+  document.body.appendChild(modal);
+
+  document.getElementById('cvEisenJa').onclick = async () => {
+    document.getElementById('cvEisenJa').style.display = 'none';
+    document.getElementById('cvEisenNee').style.display = 'none';
+    document.getElementById('cvEisenLaad').style.display = 'block';
+    try {
+      const toevoegingen = await genereerCVToevoegingen(cand, rol, eisen);
+      window._cvReview.toevoegingen = toevoegingen;
+    } catch(e) {
+      toast('Fout bij genereren toevoegingen: ' + e.message);
+    }
+    modal.remove();
+    renderCVReviewUI();
+  };
+
+  document.getElementById('cvEisenNee').onclick = () => {
+    window._cvReview.toevoegingen = [];
+    modal.remove();
+    renderCVReviewUI();
+  };
 }
 
 function renderCVReviewUI() {
@@ -1149,9 +1206,21 @@ function renderCVReviewUI() {
     </div>`;
   }
 
+  // Toevoegingen (motivatie, voorblad, etc.)
+  const toevoegingen = window._cvReview.toevoegingen || [];
+  if (toevoegingen.length) {
+    toevoegingen.forEach((t, i) => {
+      h += `<div class="panel" style="padding:14px 16px;border-left:3px solid var(--moss)">
+        <div style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--moss);margin-bottom:6px">Toevoeging — ${esc(t.titel)}</div>
+        <textarea id="rv_toev_${i}" rows="8" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:12.5px;background:var(--white);resize:vertical;line-height:1.6">${esc(t.inhoud)}</textarea>
+      </div>`;
+    });
+  }
+
   h += `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px">
-    <button class="btn" onclick="downloadMetWijzigingen()">CV + Mail klaarzetten</button>
-    <span style="font-size:11.5px;color:var(--slate)">CV aanpassen · mail genereren · als .eml downloaden</span>
+    <button class="btn" onclick="downloadMetWijzigingen(false)">CV + Mail</button>
+    <button class="btn ghost" onclick="downloadMetWijzigingen(true)">Alleen CV</button>
+    <span style="font-size:11.5px;color:var(--slate)">CV + Mail → .eml downloaden · Alleen CV → .docx downloaden</span>
   </div>`;
 
   body.innerHTML = h;
@@ -1159,7 +1228,7 @@ function renderCVReviewUI() {
   document.getElementById('dSub').textContent = cand.naam + ' · ' + rol.functietitel;
 }
 
-async function downloadMetWijzigingen() {
+async function downloadMetWijzigingen(alleenCV = false) {
   const { cvVersie, cand, rol, suggesties } = window._cvReview;
   const s = suggesties || {};
   const bullets      = Array.isArray(s.bullets) ? s.bullets : [];
@@ -1208,6 +1277,12 @@ async function downloadMetWijzigingen() {
 
   const cvNaam = `CV ${cand.naam} - ${rol.functietitel} (JGP).docx`;
 
+  // Lees bewerkte toevoegingen uit de UI
+  const toevoegingen = (window._cvReview.toevoegingen || []).map((t, i) => ({
+    ...t,
+    inhoud: document.getElementById(`rv_toev_${i}`)?.value || t.inhoud
+  }));
+
   toast('CV aanpassen...', true);
   let cvBlob;
   let waarschuwing = '';
@@ -1220,8 +1295,25 @@ async function downloadMetWijzigingen() {
       const nietGevonden = resultaten.filter(r => r.status === 'niet_gevonden');
       if (nietGevonden.length) waarschuwing = ` Let op: ${nietGevonden.length} aanpassing(en) niet gevonden — controleer handmatig.`;
     }
+    // Voeg toevoegingen in als die er zijn
+    if (toevoegingen.length) {
+      toast('Toevoegingen invoegen...', true);
+      cvBlob = await voegToevoegingToeAanDocx(cvBlob, toevoegingen);
+    }
   } catch(e) { toast('Fout bij CV aanpassen: ' + e.message); return; }
 
+  // ── Alleen CV: direct .docx downloaden ───────────────────────────────────
+  if (alleenCV) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(cvBlob);
+    a.download = cvNaam;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    toast('CV gedownload.' + waarschuwing);
+    return;
+  }
+
+  // ── CV + Mail: genereer mail en maak .eml ────────────────────────────────
   toast('Mail genereren...', true);
   let mailData;
   try {
