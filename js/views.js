@@ -20,7 +20,9 @@ function setView(v) {
 function renderTopActions(v) {
   const el = document.getElementById('topActions');
   if (v === 'vandaag')      el.innerHTML = '';
-  else if (v === 'rollen')  el.innerHTML = '<button class="btn ghost sm" onclick="openRolDrawer(null)">+ Nieuwe rol</button>';
+  else if (v === 'rollen')  el.innerHTML = (window._toonArchief
+    ? '<button class="btn ghost sm" onclick="window._toonArchief=false;renderTopActions(\'rollen\');renderRollenView()">← Actief</button>'
+    : '<button class="btn ghost sm" onclick="window._toonArchief=true;renderTopActions(\'rollen\');renderRollenView()">Archief</button><button class="btn ghost sm" onclick="openRolDrawer(null)">+ Nieuwe rol</button>');
   else if (v === 'professionals') el.innerHTML = '<button class="btn ghost sm" onclick="openCandidateDrawer(null)">+ Nieuwe professional</button><button class="btn sm" style="margin-left:8px" onclick="openBatchUpload()">Batch CV upload</button>';
   else                      el.innerHTML = '';
 }
@@ -281,19 +283,34 @@ function kanaalStatusPill(status) {
 
 function renderRollenView() {
   const el = document.getElementById('view');
-  if (!ROLLEN.length) {
+  const archief = !!window._toonArchief;
+
+  if (archief) {
+    const gearchiveerd = ROLLEN.filter(r => r.status === 'gearchiveerd');
+    if (!gearchiveerd.length) {
+      el.innerHTML = '<div class="empty"><div class="big">Archief is leeg</div>Gearchiveerde aanvragen verschijnen hier.</div>';
+      return;
+    }
+    let h = '<div class="section-label" style="margin-top:0">Archief (' + gearchiveerd.length + ')</div>';
+    gearchiveerd.forEach(rol => { h += rolKaart(rol, true); });
+    el.innerHTML = h;
+    return;
+  }
+
+  const actief = ROLLEN.filter(r => r.status !== 'gearchiveerd');
+  if (!actief.length) {
     el.innerHTML = '<div class="empty"><div class="big">Nog geen aanvragen</div>Voeg een rol toe via de knop rechtsboven of upload mails via Vandaag.</div>';
     return;
   }
-  const open = ROLLEN.filter(r => r.status === 'open');
-  const afgerond = ROLLEN.filter(r => r.status !== 'open');
+  const open = actief.filter(r => r.status === 'open');
+  const afgerond = actief.filter(r => r.status !== 'open');
   let h = '';
   if (open.length) {
     h += '<div class="section-label" style="margin-top:0">Open rollen (' + open.length + ')</div>';
     open.forEach(rol => { h += rolKaart(rol); });
   }
   if (afgerond.length) {
-    h += '<div class="section-label">Afgerond / Gearchiveerd</div>';
+    h += '<div class="section-label">Afgerond</div>';
     afgerond.slice(0, 5).forEach(rol => { h += rolKaart(rol, true); });
   }
   el.innerHTML = h;

@@ -704,9 +704,18 @@ function buildRolDrawerHtml(rol, kanalen) {
   h += '<div class="field"><label>Locatie</label><input id="rd_locatie" value="' + esc(r.locatie || '') + '"></div>';
   h += '<div class="field"><label>Uren/week</label><input id="rd_uren" value="' + esc(r.uren_per_week || '') + '"></div>';
   h += '<div class="field"><label>Globale deadline</label><input type="date" id="rd_deadline" value="' + esc(r.deadline || '') + '"></div>';
-  h += '<div class="field"><label>Status</label><select id="rd_status"><option value="open" ' + (r.status === 'open' ? 'selected' : '') + '>Open</option><option value="afgerond" ' + (r.status === 'afgerond' ? 'selected' : '') + '>Afgerond</option></select></div>';
+  h += '<div class="field"><label>Status</label><select id="rd_status"><option value="open" ' + (r.status === 'open' ? 'selected' : '') + '>Open</option><option value="afgerond" ' + (r.status === 'afgerond' ? 'selected' : '') + '>Afgerond</option><option value="gearchiveerd" ' + (r.status === 'gearchiveerd' ? 'selected' : '') + '>Gearchiveerd</option></select></div>';
   h += '</div><div class="field"><label>Omschrijving / eisen</label><textarea id="rd_omschrijving" rows="4">' + esc(r.omschrijving || '') + '</textarea></div>';
-  h += '<button class="btn sm" onclick="saveRol()">Rol opslaan</button></div>';
+  h += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">';
+  h += '<button class="btn sm" onclick="saveRol()">Rol opslaan</button>';
+  if (rol) {
+    if (r.status === 'gearchiveerd') {
+      h += '<button class="btn ghost sm" onclick="terugzettenRol(\'' + r.id + '\')">↩ Terugzetten</button>';
+    } else {
+      h += '<button class="btn ghost sm" style="color:var(--slate);margin-left:auto" onclick="archiveerRol(\'' + r.id + '\')">Archiveren</button>';
+    }
+  }
+  h += '</div></div>';
 
   if (rol) {
     h += '<div class="panel"><h3>Kanalen (' + kanalen.length + ')</h3>';
@@ -858,6 +867,33 @@ async function verwijderRol(id) {
   KANALEN = await DB.getKanalen();
   updateBadges(); renderRollenView();
   toast('Rol verwijderd.');
+}
+
+async function archiveerRol(rolId) {
+  const rol = ROLLEN.find(r => r.id === rolId);
+  if (!rol) return;
+  rol.status = 'gearchiveerd';
+  try {
+    await DB.upsertRol(rol);
+    ROLLEN = await DB.getRollen();
+    toast('Rol gearchiveerd.');
+    closeDrawer();
+    setView('rollen');
+  } catch(e) { toast('Fout: ' + e.message); }
+}
+
+async function terugzettenRol(rolId) {
+  const rol = ROLLEN.find(r => r.id === rolId);
+  if (!rol) return;
+  rol.status = 'open';
+  try {
+    await DB.upsertRol(rol);
+    ROLLEN = await DB.getRollen();
+    toast('Rol teruggezet naar actief.');
+    window._toonArchief = false;
+    closeDrawer();
+    setView('rollen');
+  } catch(e) { toast('Fout: ' + e.message); }
 }
 
 async function matchProfessionalsVoorRol(rolId, force) {
