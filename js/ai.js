@@ -123,7 +123,8 @@ Voor type "motivatiebrief": schrijf in de ik-vorm, 3 alinea's, max 220 woorden. 
 
 Voor type "voorblad": schrijf een beknopt voorblad met naam van de professional, de specifieke rol, de opdrachtgever, beschikbaarheid, tarief en locatie. Daarna 3-5 regels kernprofiel die direct aansluiten op de rol.
 
-Voor type "eisen": ga elke eis en wens uit de rolbeschrijving langs. Schrijf per eis één korte alinea hoe de professional hieraan voldoet op basis van het CV. Gebruik de structuur: "Eis: [eis] — [naam] heeft/heeft niet [concrete onderbouwing uit CV]". Wees eerlijk: als iets ontbreekt, zeg dat dan ook.
+Voor type "eisen": extraheer ALLE eisen en wensen uit de rolbeschrijving (ook als ze niet expliciet als "eis" zijn gelabeld). Behandel elke eis/wens als een aparte bullet in de inhoud met dit formaat:
+• [de eis of wens zoals in de vacature] → [hoe de professional hieraan voldoet op basis van het CV, met concrete onderbouwing]. Als iets ontbreekt: wees eerlijk en schrijf dat de professional hier (deels) niet aan voldoet. Schrijf minimaal 5 bullets, maximaal 15.
 
 Verboden woorden (alle types): bewezen staat van dienst, aantoonbare ervaring, gedegen kennis, passie voor, gedreven, hands-on, proactief, resultaatgericht, teamplayer, toegevoegde waarde.
 Antwoord ALLEEN geldige JSON.`;

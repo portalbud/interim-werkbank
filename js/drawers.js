@@ -1262,7 +1262,7 @@ async function genereerToevoegingen() {
   if (document.getElementById('toev_voorblad')?.checked)
     eisen.push({ type: 'voorblad', beschrijving: 'Maak een voorblad voor het CV met naam, rol en contactgegevens' });
   if (document.getElementById('toev_eisen')?.checked)
-    eisen.push({ type: 'eisen', beschrijving: 'Werk de eisen en wensen uit de vacature uit en koppel ze aan het CV' });
+    eisen.push({ type: 'eisen', beschrijving: 'Haal alle eisen en wensen uit de rolbeschrijving en licht per punt toe hoe de professional hieraan voldoet op basis van het CV. Gebruik bullet-formaat: • [eis] → [toelichting op basis van CV]' });
 
   if (!eisen.length) { toast('Selecteer minstens één toevoeging.'); return; }
 
