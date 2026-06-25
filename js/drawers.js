@@ -1018,17 +1018,18 @@ async function genereerKanaalCV(kanaalId) {
 
     const suggesties = await analyseerCVVoorRol(cand, rolBeschrijving, cvTekst);
 
-    // Detecteer CV-format eisen in de omschrijving
-    const cvEisen = rol.omschrijving ? await detecteerCVEisen(rol.omschrijving) : null;
+    // Stille auto-detectie van CV-format eisen (vult checkboxes voor, geen blokkerende modal)
+    let autoDetected = [];
+    try {
+      if (rol.omschrijving) {
+        const cvEisen = await detecteerCVEisen(rol.omschrijving);
+        autoDetected = cvEisen || [];
+      }
+    } catch(e) { console.warn('Auto-detectie CV-eisen mislukt:', e.message); }
 
     // Sla reviewstatus op
-    window._cvReview = { kanaalId: k.id, rolId: k.rol_id, cvVersie, cand, rol, suggesties, toevoegingen: [] };
-
-    if (cvEisen && cvEisen.length) {
-      toonCVEisenModal(cvEisen, cand, rol);
-    } else {
-      renderCVReviewUI();
-    }
+    window._cvReview = { kanaalId: k.id, rolId: k.rol_id, cvVersie, cand, rol, suggesties, toevoegingen: [], autoDetected };
+    renderCVReviewUI();
   } catch(e) {
     toast('Fout bij analyseren: ' + e.message);
     await openRolDrawer(k.rol_id);
@@ -1208,13 +1209,38 @@ function renderCVReviewUI() {
 
   // Toevoegingen (motivatie, voorblad, etc.)
   const toevoegingen = window._cvReview.toevoegingen || [];
+  const autoDetected = window._cvReview.autoDetected || [];
+  const isAuto = (...termen) => termen.some(t => autoDetected.some(e => (e.type || '').toLowerCase().includes(t)));
+
   if (toevoegingen.length) {
+    // Al gegenereerd — toon bewerkbare textareas
     toevoegingen.forEach((t, i) => {
       h += `<div class="panel" style="padding:14px 16px;border-left:3px solid var(--moss)">
         <div style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--moss);margin-bottom:6px">Toevoeging — ${esc(t.titel)}</div>
         <textarea id="rv_toev_${i}" rows="8" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:12.5px;background:var(--white);resize:vertical;line-height:1.6">${esc(t.inhoud)}</textarea>
       </div>`;
     });
+  } else {
+    // Nog niet gegenereerd — toon checkboxes
+    h += `<div class="panel" style="padding:14px 16px">
+      <div style="font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);margin-bottom:10px">Extra toevoegingen aan CV</div>
+      ${autoDetected.length
+        ? '<div style="font-size:11.5px;color:var(--moss);margin-bottom:10px">✓ Gevonden in rolbeschrijving — controleer de selectie</div>'
+        : '<div style="font-size:11.5px;color:var(--slate);margin-bottom:10px">Selecteer wat er aan het CV toegevoegd moet worden</div>'}
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;font-size:13.5px">
+        <input type="checkbox" id="toev_motivatie" ${isAuto('motivatie', 'motivatiebrief') ? 'checked' : ''}>
+        Motivatiebrief <small style="color:var(--slate);margin-left:4px">(in ik-vorm)</small>
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;font-size:13.5px">
+        <input type="checkbox" id="toev_voorblad" ${isAuto('voorblad') ? 'checked' : ''}>
+        Voorblad
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px;cursor:pointer;font-size:13.5px">
+        <input type="checkbox" id="toev_eisen" ${isAuto('eisen', 'wensen') ? 'checked' : ''}>
+        Eisen &amp; wensen uitwerking
+      </label>
+      <button class="btn ghost sm" onclick="genereerToevoegingen()">Toevoegingen genereren</button>
+    </div>`;
   }
 
   h += `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px">
@@ -1226,6 +1252,33 @@ function renderCVReviewUI() {
   body.innerHTML = h;
   document.getElementById('dTitle').textContent = 'CV review';
   document.getElementById('dSub').textContent = cand.naam + ' · ' + rol.functietitel;
+}
+
+async function genereerToevoegingen() {
+  const { cand, rol } = window._cvReview;
+  const eisen = [];
+  if (document.getElementById('toev_motivatie')?.checked)
+    eisen.push({ type: 'motivatiebrief', beschrijving: 'Schrijf een motivatiebrief in de ik-vorm passend bij de rol' });
+  if (document.getElementById('toev_voorblad')?.checked)
+    eisen.push({ type: 'voorblad', beschrijving: 'Maak een voorblad voor het CV met naam, rol en contactgegevens' });
+  if (document.getElementById('toev_eisen')?.checked)
+    eisen.push({ type: 'eisen', beschrijving: 'Werk de eisen en wensen uit de vacature uit en koppel ze aan het CV' });
+
+  if (!eisen.length) { toast('Selecteer minstens één toevoeging.'); return; }
+
+  const btn = document.querySelector('[onclick="genereerToevoegingen()"]');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin" style="display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;margin-right:6px;vertical-align:middle"></span>Genereren…'; }
+
+  try {
+    toast('Toevoegingen schrijven…', true);
+    const toevoegingen = await genereerCVToevoegingen(cand, rol, eisen);
+    window._cvReview.toevoegingen = toevoegingen;
+    renderCVReviewUI();
+    toast('Toevoegingen gegenereerd — controleer en pas aan waar nodig.');
+  } catch(e) {
+    toast('Fout bij genereren: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'Toevoegingen genereren'; }
+  }
 }
 
 async function downloadMetWijzigingen(alleenCV = false) {
