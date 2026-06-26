@@ -32,6 +32,9 @@ main{overflow-y:auto;display:flex;flex-direction:column}
 .topbar .sub{color:var(--ink-soft);font-size:12px;margin-left:2px}
 .topbar .spacer{flex:1}
 .view{padding:24px 28px 80px;flex:1}
+/* Vandaag taaklijst */
+.vd-task{transition:background .1s}
+.vd-task:hover{background:var(--paper-2)}
 /* buttons */
 .btn{all:unset;cursor:pointer;font-weight:600;font-size:12.5px;padding:9px 16px;border-radius:8px;background:var(--moss);color:#fff;transition:.12s;white-space:nowrap}
 .btn:hover{background:var(--moss-deep)}.btn:disabled{opacity:.4;cursor:not-allowed}

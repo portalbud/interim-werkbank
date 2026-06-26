@@ -169,74 +169,135 @@ function renderDashboard() {
 
 function renderVandaag() {
   const el = document.getElementById('view');
-  const openKanalen = KANALEN.filter(k => k.status === 'nieuw' || k.status === 'in_behandeling');
   const nu = new Date();
-  const vandaagDeadline = openKanalen.filter(k => {
-    if (!k.deadline) return false;
-    const d = new Date(k.deadline);
-    return d <= new Date(nu.getFullYear(), nu.getMonth(), nu.getDate() + 2);
-  });
+  const vandaag = new Date(nu.getFullYear(), nu.getMonth(), nu.getDate());
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function deadlineMeta(deadline) {
+    if (!deadline) return { label: '', clr: 'var(--slate)', diff: 99 };
+    const d = new Date(deadline);
+    const diff = Math.floor((d - vandaag) / 86400000);
+    if (diff < 0)       return { label: 'verlopen',              clr: '#c0614a', diff };
+    if (diff === 0)     return { label: 'vandaag',               clr: '#c0614a', diff };
+    if (diff === 1)     return { label: 'morgen',                clr: '#d48a2e', diff };
+    if (diff <= 7)      return { label: dlInfo(deadline).txt,    clr: '#8a6a18', diff };
+    return               { label: dlInfo(deadline).txt,          clr: 'var(--slate)', diff };
+  }
+
+  function dotClr(k, cand) {
+    const { diff } = deadlineMeta(k.deadline);
+    if (!cand)       return '#c0614a';
+    if (diff <= 0)   return '#c0614a';
+    if (diff <= 1)   return '#d48a2e';
+    return 'var(--line)';
+  }
+
+  function actieChip(k, cand) {
+    if (!cand)
+      return `<span style="font-size:11px;padding:2px 9px;border-radius:4px;background:#fdecea;color:#c0614a;font-family:var(--mono);white-space:nowrap">Kandidaat kiezen</span>`;
+    if (k.status === 'nieuw')
+      return `<span style="font-size:11px;padding:2px 9px;border-radius:4px;background:var(--paper-2);color:var(--slate);font-family:var(--mono);white-space:nowrap">CV klaarzetten</span>`;
+    return `<span style="font-size:11px;padding:2px 9px;border-radius:4px;background:#e3eee4;color:var(--moss-deep);font-family:var(--mono);white-space:nowrap">Opvolgen</span>`;
+  }
+
+  function sectionHeader(label, count) {
+    return `<div style="font-size:10.5px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.1em;font-family:var(--mono);padding:0 4px;margin-bottom:4px">${label} · ${count}</div>`;
+  }
+
+  // ── Data ─────────────────────────────────────────────────────────────────
+  const actief = KANALEN
+    .filter(k => k.status === 'nieuw' || k.status === 'in_behandeling')
+    .sort((a, b) => {
+      // Geen kandidaat bovenaan, dan op deadline
+      const noCandA = !a.kandidaat_id, noCandB = !b.kandidaat_id;
+      if (noCandA !== noCandB) return noCandA ? -1 : 1;
+      const dA = a.deadline ? new Date(a.deadline) : new Date('2099-01-01');
+      const dB = b.deadline ? new Date(b.deadline) : new Date('2099-01-01');
+      return dA - dB;
+    });
+
+  const verstuurd = KANALEN.filter(k => k.status === 'verstuurd');
 
   let h = '';
 
-  // Invoer blok
-  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">';
-
-  // Mail upload
-  h += '<div class="card" style="padding:16px">';
-  h += '<div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-soft);margin-bottom:10px">Mails uploaden</div>';
-  h += '<div class="upload-zone" id="vdMailDrop" style="padding:16px;margin-bottom:8px"><strong>Sleep .eml of .msg bestanden</strong><br><span style="font-size:12px">of klik om te kiezen</span></div>';
-  h += '<input type="file" id="vdMailInput" multiple accept=".eml,.msg,.txt,.zip" style="display:none">';
-  if (PENDING_MAILS.length) {
-    h += '<div style="display:flex;gap:8px;margin-top:8px">';
-    h += '<button class="btn sm" onclick="startBatchAnalyse()">Analyseren (' + PENDING_MAILS.length + ')</button>';
-    h += '<button class="btn ghost sm" onclick="PENDING_MAILS=[];renderVandaag()">Wissen</button>';
-    h += '</div>';
-  }
-  h += '</div>';
-
-  // Tekst plakken
-  h += '<div class="card" style="padding:16px">';
-  h += '<div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-soft);margin-bottom:10px">Tekst plakken (portal / WhatsApp)</div>';
-  h += '<textarea id="vdTekst" placeholder="Plak hier een aanvraag uit een portal, WhatsApp of andere bron..." style="width:100%;height:110px;border:1px solid var(--line);border-radius:8px;padding:10px;font-size:13px;resize:none;font-family:var(--sans)"></textarea>';
-  h += '<button class="btn sm" style="margin-top:8px" onclick="vdTekstAnalyse()">Analyseren</button>';
-  h += '</div>';
-  h += '</div>';
-
-  if (vandaagDeadline.length) {
-    h += '<div class="section-label">Deadline nadert</div><div class="card">';
-    vandaagDeadline.forEach(k => {
-      const rol = ROLLEN.find(r => r.id === k.rol_id);
+  // ── Taken ─────────────────────────────────────────────────────────────────
+  if (actief.length) {
+    h += sectionHeader('Actie vereist', actief.length);
+    actief.forEach(k => {
+      const rol  = ROLLEN.find(r => r.id === k.rol_id);
       const cand = CANDIDATES.find(c => c.id === k.kandidaat_id);
-      const dl = dlInfo(k.deadline);
-      h += '<div class="row" onclick="window._openRol(this.dataset.id)" data-id=' + k.rol_id + ' style="cursor:pointer">';
-      h += '<div class="body"><div class="title">' + (rol ? esc(rol.functietitel) : '?') + ' <span style="font-size:12px;color:var(--slate);font-weight:400">via ' + esc(k.broker_naam) + '</span></div>';
-      h += '<div class="meta">' + (rol ? esc(rol.klant || '') : '') + (cand ? ' - kandidaat: <b>' + esc(cand.naam) + '</b>' : '') + '</div></div>';
-      h += '<div class="right">' + kanaalStatusPill(k.status) + '<span class="dl soon">' + dl.txt + '</span>';
-      if (k.opgepakt_door) h += '<span style="font-size:10px;font-family:var(--mono);background:var(--moss);color:#fff;padding:2px 8px;border-radius:20px">' + esc(k.opgepakt_door) + '</span>';
-      h += '</div></div>';
+      const dm   = deadlineMeta(k.deadline);
+      const dc   = dotClr(k, cand);
+
+      h += `<div class="vd-task" onclick="window._openRol('${k.rol_id}')" style="display:flex;align-items:flex-start;gap:13px;padding:9px 6px;border-radius:8px;cursor:pointer;margin-bottom:1px">
+        <div style="width:17px;height:17px;border-radius:50%;border:2px solid ${dc};flex-shrink:0;margin-top:3px"></div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13.5px;font-weight:600;color:var(--ink);line-height:1.3">
+            ${esc(rol?.functietitel || '?')}
+            <span style="font-weight:400;color:var(--ink-soft)"> · ${esc(k.broker_naam)}</span>
+          </div>
+          <div style="font-size:12px;color:var(--slate);margin-top:2px">
+            ${esc(rol?.klant || '')}${cand
+              ? ' · <span style="color:var(--ink-soft);font-weight:500">' + esc(cand.naam) + '</span>'
+              : ' · <span style="color:#c0614a">geen kandidaat</span>'}
+            ${k.opgepakt_door ? ' · <span style="color:var(--moss)">' + esc(k.opgepakt_door) + '</span>' : ''}
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;padding-top:2px">
+          ${actieChip(k, cand)}
+          ${dm.label ? `<span style="font-size:11px;font-family:var(--mono);color:${dm.clr};white-space:nowrap">${dm.label}</span>` : ''}
+        </div>
+      </div>`;
     });
-    h += '</div>';
   }
 
-  if (openKanalen.length) {
-    h += '<div class="section-label">Open (' + openKanalen.length + ')</div><div class="card">';
-    openKanalen.filter(k => !vandaagDeadline.includes(k)).slice(0, 15).forEach(k => {
-      const rol = ROLLEN.find(r => r.id === k.rol_id);
+  // ── Verstuurd ─────────────────────────────────────────────────────────────
+  if (verstuurd.length) {
+    h += `<div style="margin-top:22px"></div>`;
+    h += sectionHeader('Verstuurd', verstuurd.length);
+    verstuurd.forEach(k => {
+      const rol  = ROLLEN.find(r => r.id === k.rol_id);
       const cand = CANDIDATES.find(c => c.id === k.kandidaat_id);
-      h += '<div class="row" onclick="window._openRol(this.dataset.id)" data-id=' + k.rol_id + ' style="cursor:pointer">';
-      h += '<div class="body"><div class="title">' + (rol ? esc(rol.functietitel) : '?') + ' <span style="font-size:12px;color:var(--slate);font-weight:400">via ' + esc(k.broker_naam) + '</span></div>';
-      h += '<div class="meta">' + (rol ? esc(rol.klant || '') : '') + (cand ? ' - ' + esc(cand.naam) : '') + (k.deadline ? ' - ' + dlInfo(k.deadline).txt : '') + '</div></div>';
-      h += '<div class="right">' + kanaalStatusPill(k.status);
-      if (k.opgepakt_door) h += '<span style="font-size:10px;font-family:var(--mono);background:var(--moss);color:#fff;padding:2px 8px;border-radius:20px">' + esc(k.opgepakt_door) + '</span>';
-      h += '</div></div>';
+      const dm   = deadlineMeta(k.deadline);
+      h += `<div class="vd-task" onclick="window._openRol('${k.rol_id}')" style="display:flex;align-items:center;gap:13px;padding:8px 6px;border-radius:8px;cursor:pointer;opacity:.5;margin-bottom:1px">
+        <div style="width:17px;height:17px;border-radius:50%;border:2px solid var(--line);flex-shrink:0"></div>
+        <div style="flex:1;min-width:0;font-size:13px;color:var(--ink)">
+          ${esc(rol?.functietitel || '?')}
+          <span style="color:var(--slate)"> · ${esc(k.broker_naam)}${cand ? ' · ' + esc(cand.naam) : ''}</span>
+        </div>
+        ${dm.label ? `<span style="font-size:11px;font-family:var(--mono);color:${dm.clr}">${dm.label}</span>` : ''}
+      </div>`;
     });
-    h += '</div>';
   }
 
-  if (!openKanalen.length && !PENDING_MAILS.length) {
-    h += '<div class="empty"><div class="big">Alles bijgewerkt</div>Upload mails of plak een aanvraag om te beginnen.</div>';
+  // ── Leeg ──────────────────────────────────────────────────────────────────
+  if (!actief.length && !verstuurd.length) {
+    h += '<div class="empty" style="padding-top:40px"><div class="big">Alles bijgewerkt ✓</div>Geen openstaande acties.</div>';
   }
+
+  // ── Nieuwe aanvraag (onderaan, secundair) ─────────────────────────────────
+  h += `<div style="margin-top:32px;border-top:1px solid var(--line);padding-top:20px">
+    <div style="font-size:10.5px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.1em;font-family:var(--mono);margin-bottom:12px;padding:0 4px">Nieuwe aanvraag verwerken</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div style="border:1.5px dashed var(--line);border-radius:9px;padding:14px 16px;cursor:pointer;transition:.1s" id="vdMailDrop"
+           onmouseover="this.style.borderColor='var(--moss)'" onmouseout="this.style.borderColor='var(--line)'"
+           onclick="document.getElementById('vdMailInput').click()">
+        <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:3px">Mails uploaden</div>
+        <div style="font-size:12px;color:var(--slate)">.eml of .msg bestanden slepen of klikken</div>
+        ${PENDING_MAILS.length ? `<div style="margin-top:10px;display:flex;gap:6px">
+          <button class="btn sm" onclick="event.stopPropagation();startBatchAnalyse()">Analyseren (${PENDING_MAILS.length})</button>
+          <button class="btn ghost sm" onclick="event.stopPropagation();PENDING_MAILS=[];renderVandaag()">×</button>
+        </div>` : ''}
+      </div>
+      <div style="border:1.5px dashed var(--line);border-radius:9px;padding:14px 16px">
+        <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px">Tekst plakken</div>
+        <textarea id="vdTekst" placeholder="Portal, WhatsApp, mail…"
+          style="width:100%;box-sizing:border-box;height:62px;border:1px solid var(--line);border-radius:7px;padding:8px 10px;font-size:12.5px;resize:none;font-family:var(--sans);background:var(--white);color:var(--ink)"></textarea>
+        <button class="btn sm" style="margin-top:8px" onclick="vdTekstAnalyse()">Analyseren</button>
+      </div>
+    </div>
+    <input type="file" id="vdMailInput" multiple accept=".eml,.msg,.txt,.zip" style="display:none">
+  </div>`;
 
   el.innerHTML = h;
   wireVdUpload();
