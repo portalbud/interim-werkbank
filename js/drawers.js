@@ -693,6 +693,22 @@ async function openRolDrawerMetData(data) {
     updateBadges();
     await openRolDrawer(nieuweRol.id);
     toast('Rol aangemaakt. Voeg kanalen toe.');
+
+    // Auto-match op de achtergrond
+    if (claudeKey() && CANDIDATES.length) {
+      setTimeout(async () => {
+        try {
+          const matches = await runMatchingVoorRol(nieuweRol);
+          window._rolMatches = window._rolMatches || {};
+          window._rolMatches[nieuweRol.id] = matches;
+          if (document.getElementById('drawer').classList.contains('show')) {
+            await openRolDrawer(nieuweRol.id);
+          }
+          const goede = matches.filter(m => m.score >= 50).length;
+          toast(goede ? goede + ' goede matches gevonden.' : 'Matching klaar — geen sterke matches.');
+        } catch(e) { console.warn('Auto-matching mislukt:', e.message); }
+      }, 400);
+    }
   } catch(e) { toast('Fout: ' + e.message); }
 }
 
@@ -718,6 +734,46 @@ function buildRolDrawerHtml(rol, kanalen) {
   h += '</div></div>';
 
   if (rol) {
+    // ── Beste match blok ──────────────────────────────────────────────────────
+    const topMatches = ((window._rolMatches || {})[rol.id] || []).slice(0, 3);
+    h += '<div class="panel" id="rolMatchSuggesties">';
+    h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
+    h += '<h3 style="margin:0">Beste match</h3>';
+    if (topMatches.length) {
+      h += '<button class="btn ghost sm" onclick="matchProfessionalsVoorRol(\'' + rol.id + '\',true)">Opnieuw matchen</button>';
+    }
+    h += '</div>';
+
+    if (!topMatches.length) {
+      if (claudeKey() && CANDIDATES.length) {
+        h += '<div style="font-size:12px;color:var(--slate);display:flex;align-items:center;gap:8px"><span class="spin" style="display:inline-block;width:12px;height:12px;border:2px solid var(--line);border-top-color:var(--moss);border-radius:50%;animation:spin .7s linear infinite"></span>Matches worden geladen…</div>';
+      } else if (!CANDIDATES.length) {
+        h += '<div style="font-size:12px;color:var(--slate)">Nog geen professionals toegevoegd.</div>';
+      } else {
+        h += '<div style="font-size:12px;color:var(--slate)">Vul je Claude API-sleutel in om te matchen.</div>';
+      }
+    } else {
+      topMatches.forEach(m => {
+        const c = m.candidate;
+        if (!c) return;
+        const scoreClr = m.score >= 70 ? 'var(--moss-deep)' : m.score >= 45 ? '#8a6a18' : 'var(--slate)';
+        const toegewezen = kanalen.find(k => k.kandidaat_id === c.id);
+        h += '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--paper-2)">';
+        h += '<div style="font-size:20px;font-weight:700;font-family:var(--mono);color:' + scoreClr + ';width:34px;text-align:center;flex-shrink:0">' + m.score + '</div>';
+        h += '<div style="flex:1;min-width:0">';
+        h += '<div style="font-weight:600;font-size:13.5px">' + esc(c.naam) + '</div>';
+        h += '<div style="font-size:11.5px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (c.rollen || []).join(' · ') + (c.beschikbaar ? ' · ' + c.beschikbaar : '') + '</div>';
+        h += '</div>';
+        if (toegewezen) {
+          h += '<span style="font-size:11px;color:var(--moss);font-family:var(--mono);white-space:nowrap">✓ ' + esc(toegewezen.broker_naam) + '</span>';
+        } else {
+          h += '<button class="btn sm" style="white-space:nowrap" onclick="selecteerKandidaatVoorKanaal(\'' + c.id + '\',\'' + esc(c.naam).replace(/'/g, "\\'") + '\')">Selecteer</button>';
+        }
+        h += '</div>';
+      });
+    }
+    h += '</div>';
+
     h += '<div class="panel"><h3>Kanalen (' + kanalen.length + ')</h3>';
     if (kanalen.length) kanalen.forEach(k => { h += buildKanaalBlok(k); });
     else h += '<div style="font-size:12.5px;color:var(--slate);margin-bottom:12px">Nog geen kanalen. Voeg toe wie deze rol uitzet.</div>';
@@ -734,19 +790,17 @@ function buildRolDrawerHtml(rol, kanalen) {
     h += '</div><button class="btn sm" onclick="voegKanaalToe(this.dataset.id)" data-id=' + rol.id + '>Kanaal toevoegen</button>';
     h += '</div></div>';
 
-    // ── Matching ──────────────────────────────────────────────────────────────
-    const rolMatches = (window._rolMatches || {})[rol.id] || [];
-    h += '<div class="panel"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
-    h += '<h3 style="margin:0">Match professionals</h3>';
-    if (rolMatches.length) h += '<button class="btn ghost sm" onclick="matchProfessionalsVoorRol(\'' + rol.id + '\',true)">Opnieuw matchen</button>';
-    h += '</div>';
-    if (!rolMatches.length) {
-      h += '<button class="btn" onclick="matchProfessionalsVoorRol(\'' + rol.id + '\')">Matchen met Claude (' + CANDIDATES.length + ' professionals)</button>';
-      h += '<p style="font-size:12px;color:var(--slate);margin-top:8px">Claude vergelijkt de rolbeschrijving met alle professionals en geeft scores met onderbouwing.</p>';
-    } else {
-      h += renderRolMatches(rol, kanalen, rolMatches);
+    // ── Volledige matchlijst (alleen tonen als er matches zijn) ───────────────
+    const rolMatchesFull = (window._rolMatches || {})[rol.id] || [];
+    if (rolMatchesFull.length > 3) {
+      h += '<div class="panel">';
+      h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
+      h += '<h3 style="margin:0">Alle matches (' + rolMatchesFull.length + ')</h3>';
+      h += '<button class="btn ghost sm" onclick="matchProfessionalsVoorRol(\'' + rol.id + '\',true)">Opnieuw matchen</button>';
+      h += '</div>';
+      h += renderRolMatches(rol, kanalen, rolMatchesFull);
+      h += '</div>';
     }
-    h += '</div>';
 
     h += '<div class="panel"><h3>Gerelateerde rollen</h3>';
     h += '<button class="btn ghost sm" onclick="window._checkDup(this.dataset.id)" data-id=' + rol.id + '>Controleer op vergelijkbare rollen</button>';
@@ -786,6 +840,17 @@ function buildKanaalBlok(k) {
 }
 
 function wireRolDrawer(rolId, kanalen) {}
+
+function selecteerKandidaatVoorKanaal(candId, naam) {
+  const sel = document.getElementById('nk_kandidaat');
+  if (!sel) { toast('Voeg eerst een kanaal toe.'); return; }
+  sel.value = candId;
+  sel.dispatchEvent(new Event('change'));
+  sel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  sel.style.outline = '2px solid var(--moss)';
+  setTimeout(() => { sel.style.outline = ''; }, 2000);
+  toast(naam + ' geselecteerd — vul broker en deadline in.');
+}
 
 async function saveRol() {
   const r = window._editRol;
