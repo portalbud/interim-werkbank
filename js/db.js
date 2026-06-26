@@ -206,5 +206,24 @@ const DB = {
     const { data, error } = await sb.storage.from('cv-bestanden').download(path);
     if (error || !data) return null;
     return data; // Blob
+  },
+
+  // aanbiedingsdocument template per rol
+  async uploadAanbiedingTemplate(rolId, blob) {
+    const path = 'aanbiedingen/' + rolId + '/template.docx';
+    const { error } = await sb.storage.from('cv-bestanden').upload(path, blob, {
+      contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      upsert: true
+    });
+    if (error) throw error;
+  },
+  async heeftAanbiedingTemplate(rolId) {
+    const { data } = await sb.storage.from('cv-bestanden').list('aanbiedingen/' + rolId);
+    return !!(data && data.length);
+  },
+  async downloadAanbiedingTemplate(rolId) {
+    const { data, error } = await sb.storage.from('cv-bestanden').download('aanbiedingen/' + rolId + '/template.docx');
+    if (error || !data) return null;
+    return data;
   }
 };

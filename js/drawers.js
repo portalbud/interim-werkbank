@@ -673,6 +673,21 @@ async function openRolDrawer(rolId) {
   document.getElementById('dBody').innerHTML = buildRolDrawerHtml(rol, kanalen);
   showDrawer();
   window._editRol = rol ? { ...rol } : { id: null, functietitel: '', klant: '', locatie: '', uren_per_week: '', deadline: '', omschrijving: '', status: 'open' };
+  // Async: check aanbiedingsdocument template status
+  if (rol) {
+    setTimeout(async () => {
+      try {
+        const heeft = await DB.heeftAanbiedingTemplate(rol.id);
+        const el = document.getElementById('aanbied_status');
+        if (!el) return;
+        if (heeft) {
+          el.innerHTML = '<span style="color:var(--moss);font-size:12px">✓ Template aanwezig</span> &nbsp;<button class="btn ghost sm" onclick="triggerAanbiedingUpload()">Vervangen</button>';
+        } else {
+          el.innerHTML = '<span style="font-size:12px;color:var(--slate)">Nog geen template</span>';
+        }
+      } catch(e) { /* stil */ }
+    }, 150);
+  }
 }
 
 async function openRolDrawerMetData(data) {
@@ -805,6 +820,15 @@ function buildRolDrawerHtml(rol, kanalen) {
     h += '<div class="panel"><h3>Gerelateerde rollen</h3>';
     h += '<button class="btn ghost sm" onclick="window._checkDup(this.dataset.id)" data-id=' + rol.id + '>Controleer op vergelijkbare rollen</button>';
     h += '<div id="dup_rollen_result" style="margin-top:10px"></div></div>';
+
+    // ── Aanbiedingsdocument ─────────────────────────────────────────────────
+    h += '<div class="panel">';
+    h += '<h3 style="margin-bottom:4px">Aanbiedingsdocument</h3>';
+    h += '<div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">Optioneel: upload een leeg aanbiedingsdocument (.docx). Bij het genereren van het CV vult PortalBuddy dit automatisch in op basis van de kandidaat en de rolbeschrijving.</div>';
+    h += '<div id="aanbied_status" style="font-size:12px;color:var(--slate);margin-bottom:10px">Controleren…</div>';
+    h += '<input type="file" id="aanbied_input" accept=".docx" style="display:none" onchange="slaanAanbiedingTemplateOp(\'' + rol.id + '\')">';
+    h += '<button class="btn ghost sm" onclick="triggerAanbiedingUpload()">Template uploaden</button>';
+    h += '</div>';
   }
   return h;
 }
@@ -840,6 +864,44 @@ function buildKanaalBlok(k) {
 }
 
 function wireRolDrawer(rolId, kanalen) {}
+
+function triggerAanbiedingUpload() {
+  const inp = document.getElementById('aanbied_input');
+  if (inp) inp.click();
+}
+
+async function slaanAanbiedingTemplateOp(rolId) {
+  const inp = document.getElementById('aanbied_input');
+  if (!inp || !inp.files.length) return;
+  const file = inp.files[0];
+  if (!file.name.endsWith('.docx')) { toast('Alleen .docx bestanden.'); return; }
+  try {
+    toast('Template uploaden…', true);
+    await DB.uploadAanbiedingTemplate(rolId, file);
+    const el = document.getElementById('aanbied_status');
+    if (el) el.innerHTML = '<span style="color:var(--moss);font-size:12px">✓ Template aanwezig</span> &nbsp;<button class="btn ghost sm" onclick="triggerAanbiedingUpload()">Vervangen</button>';
+    toast('Template opgeslagen.');
+  } catch(e) { toast('Upload mislukt: ' + e.message); }
+}
+
+async function downloadAanbiedingsdocumentIndienBeschikbaar(cand, rol) {
+  if (!rol || !rol.id) return;
+  try {
+    const heeft = await DB.heeftAanbiedingTemplate(rol.id);
+    if (!heeft) return;
+    toast('Aanbiedingsdocument invullen…', true);
+    const templateBlob = await DB.downloadAanbiedingTemplate(rol.id);
+    if (!templateBlob) return;
+    const beoordeling = await genereerAanbiedingBeoordeling(cand, rol);
+    const gevuldBlob = await vulAanbiedingsdocumentIn(templateBlob, cand, rol, beoordeling);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(gevuldBlob);
+    a.download = 'Aanbiedingsdocument ' + (cand.naam || 'kandidaat') + ' - ' + (rol.functietitel || 'rol') + '.docx';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    toast('Aanbiedingsdocument gedownload.');
+  } catch(e) { console.warn('Aanbiedingsdocument overgeslagen:', e.message); toast('Aanbiedingsdocument overgeslagen: ' + e.message); }
+}
 
 function selecteerKandidaatVoorKanaal(candId, naam) {
   const sel = document.getElementById('nk_kandidaat');
@@ -1464,6 +1526,7 @@ async function downloadMetWijzigingen(alleenCV = false) {
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
     toast('CV gedownload.' + waarschuwing);
+    await downloadAanbiedingsdocumentIndienBeschikbaar(cand, rol);
     return;
   }
 
@@ -1512,6 +1575,7 @@ async function downloadMetWijzigingen(alleenCV = false) {
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 
     toast('Mail + CV klaar — dubbelklik het .eml bestand om te openen in Outlook.' + waarschuwing);
+    await downloadAanbiedingsdocumentIndienBeschikbaar(cand, rol);
   } catch(e) { toast('Fout bij EML aanmaken: ' + e.message); }
 }
 

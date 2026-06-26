@@ -598,3 +598,186 @@ async function vervangTekstInDocx(blob, vervangingen) {
   });
   return { blob: nieuweBlob, resultaten };
 }
+
+// ── Aanbiedingsdocument ───────────────────────────────────────────────────────
+
+async function genereerAanbiedingBeoordeling(cand, rol) {
+  const cvTekst = (cand.profiel || '') + '\n' + (cand.rollen || '') + '\n' + (cand.skills || '');
+  const sys = `Je vult een aanbiedingsdocument in voor een interim kandidaat.
+Lees de rolbeschrijving zorgvuldig. Extraheer alle eisen en wensen — ook als ze niet expliciet als "eis" of "wens" zijn gelabeld.
+Beoordeel per criterium of de kandidaat eraan voldoet op basis van het CV. Wees eerlijk en concreet, verwijs naar specifieke CV-onderdelen.
+Schrijf de motivatie in de ik-vorm, zakelijk, geen verkooppraat.
+Antwoord ALLEEN geldige JSON.`;
+
+  const usr = `KANDIDAAT: ${cand.naam || ''}
+BESCHIKBAAR: ${cand.beschikbaar || ''}
+CV/PROFIEL:
+${cvTekst}
+
+ROL: ${rol.functietitel || ''}${rol.klant ? ' bij ' + rol.klant : ''}
+ROLBESCHRIJVING:
+${rol.omschrijving || '(geen beschrijving)'}
+
+Geef ALLEEN deze JSON (geen uitleg erbuiten):
+{
+  "motivatie": "Motivatietekst max 250 woorden in ik-vorm",
+  "eisen": [
+    {"beschrijving": "de eis zoals gesteld", "voldoet": true, "motivering": "concrete onderbouwing vanuit CV"}
+  ],
+  "wensen": [
+    {"beschrijving": "de wens zoals gesteld", "voldoet": true, "motivering": "concrete onderbouwing vanuit CV"}
+  ]
+}`;
+
+  const raw = await claude(sys, usr, 3000);
+  const r = JSON.parse(raw.replace(/^```json\s*/,'').replace(/```\s*$/,''));
+  return {
+    motivatie: r.motivatie || '',
+    eisen: Array.isArray(r.eisen) ? r.eisen : [],
+    wensen: Array.isArray(r.wensen) ? r.wensen : []
+  };
+}
+
+async function vulAanbiedingsdocumentIn(templateBlob, cand, rol, beoordeling) {
+  const zip = await JSZip.loadAsync(templateBlob instanceof ArrayBuffer ? templateBlob : await templateBlob.arrayBuffer());
+  let xml = await zip.file('word/document.xml').async('string');
+
+  const veilig = s => (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  // Get concatenated text from all <w:t> runs in a paragraph XML string
+  const paraGetText = p => {
+    const ts = [];
+    p.replace(/<w:t[^>]*>([^<]*)<\/w:t>/g, (_, t) => ts.push(t));
+    return ts.join('').trim();
+  };
+
+  // Replace all text content of a paragraph with newText, preserving pPr and first rPr
+  const paraSetText = (paraXml, newText) => {
+    const pTagMatch = paraXml.match(/^<w:p([^>]*)>/);
+    const pAttrs = pTagMatch ? pTagMatch[1] : '';
+    const pPrMatch = paraXml.match(/<w:pPr>[\s\S]*?<\/w:pPr>/);
+    const pPr = pPrMatch ? pPrMatch[0] : '';
+    const rPrMatch = paraXml.match(/<w:r[^>]*>\s*(<w:rPr>[\s\S]*?<\/w:rPr>)/);
+    const rPr = rPrMatch ? rPrMatch[1] : '';
+    const escaped = veilig(newText);
+    return `<w:p${pAttrs}>${pPr}<w:r>${rPr}<w:t xml:space="preserve">${escaped}</w:t></w:r></w:p>`;
+  };
+
+  // Parse the body into paragraph and non-paragraph parts
+  const bodyStart = xml.indexOf('<w:body>') + 8;
+  const bodyEnd = xml.lastIndexOf('</w:body>');
+  const pre = xml.slice(0, bodyStart);
+  const post = xml.slice(bodyEnd);
+  const body = xml.slice(bodyStart, bodyEnd);
+
+  const parts = [];
+  let pos = 0;
+  while (pos < body.length) {
+    const pIdx1 = body.indexOf('<w:p ', pos);
+    const pIdx2 = body.indexOf('<w:p>', pos);
+    const pStart = pIdx1 === -1 ? pIdx2 : pIdx2 === -1 ? pIdx1 : Math.min(pIdx1, pIdx2);
+    if (pStart === -1) { parts.push({ type: 'other', xml: body.slice(pos) }); break; }
+    if (pStart > pos) parts.push({ type: 'other', xml: body.slice(pos, pStart) });
+    const pEnd = body.indexOf('</w:p>', pStart) + 6;
+    if (pEnd < 6) break;
+    const paraXml = body.slice(pStart, pEnd);
+    parts.push({ type: 'para', xml: paraXml, text: paraGetText(paraXml) });
+    pos = pEnd;
+  }
+
+  // Fill a label field: find paragraph with exact label text and append value
+  const fillLabel = (label, value) => {
+    if (!value) return;
+    const idx = parts.findIndex(p => p.type === 'para' && p.text === label);
+    if (idx >= 0) {
+      const newText = label + ' ' + value;
+      parts[idx].xml = paraSetText(parts[idx].xml, newText);
+      parts[idx].text = newText;
+    }
+  };
+
+  fillLabel('Naam kandidaat:', cand.naam || '');
+  fillLabel('Emailadres Kandidaat:', cand.email || '');
+  fillLabel('Beschikbaar per (datum):', cand.beschikbaar || '');
+  if (rol && rol.uren_per_week) fillLabel('Uren/Dagen per week:', String(rol.uren_per_week));
+
+  // Fill motivatie: insert after "Optionele motivatie" header paragraph
+  if (beoordeling.motivatie) {
+    const motivIdx = parts.findIndex(p => p.type === 'para' && p.text.includes('Optionele motivatie'));
+    if (motivIdx >= 0 && motivIdx + 1 < parts.length && parts[motivIdx + 1].type === 'para') {
+      parts[motivIdx + 1].xml = paraSetText(parts[motivIdx + 1].xml, beoordeling.motivatie);
+      parts[motivIdx + 1].text = beoordeling.motivatie;
+    }
+  }
+
+  // Fill a criteria section (Eisen or Wensen)
+  // Process from BOTTOM to TOP to keep array indices stable across two calls
+  const vulCriteria = (sectionLabel, nextSectionLabel, criteria) => {
+    if (!criteria || !criteria.length) return;
+
+    const secIdx = parts.findIndex(p => p.type === 'para' && p.text.trim() === sectionLabel);
+    if (secIdx < 0) return;
+
+    let secEnd = parts.length;
+    if (nextSectionLabel) {
+      const nextIdx = parts.findIndex((p, i) => i > secIdx && p.type === 'para' && p.text.trim() === nextSectionLabel);
+      if (nextIdx > 0) secEnd = nextIdx;
+    }
+
+    // Find criterion groups: consecutive triplets [Criterium ..., ... Ja ..., ... Nee]
+    const groups = [];
+    for (let i = secIdx + 1; i < secEnd; i++) {
+      if (parts[i].type !== 'para' || !parts[i].text.startsWith('Criterium')) continue;
+      let jaI = -1, neeI = -1;
+      for (let j = i + 1; j < Math.min(i + 6, secEnd); j++) {
+        if (parts[j].type !== 'para') continue;
+        if (jaI === -1 && parts[j].text.includes('Ja')) jaI = j;
+        if (neeI === -1 && parts[j].text.includes('Nee')) neeI = j;
+      }
+      if (jaI > 0 && neeI > 0) {
+        groups.push({ criterIdx: i, jaIdx: jaI, neeIdx: neeI });
+        i = neeI;
+      }
+    }
+    if (!groups.length) return;
+
+    // Use first group's XML as template for new blocks
+    const tplCrit = parts[groups[0].criterIdx].xml;
+    const tplJa   = parts[groups[0].jaIdx].xml;
+    const tplNee  = parts[groups[0].neeIdx].xml;
+
+    const newParts = criteria.map((c, idx) => {
+      const label = `Criterium ${idx + 1}: ${c.beschrijving}`;
+      const critXml = paraSetText(tplCrit, label);
+      let jaXml, neeXml;
+      if (c.voldoet) {
+        jaXml  = paraSetText(tplJa,  `X Ja: ${c.motivering || 'Voldoet.'}`);
+        neeXml = paraSetText(tplNee, '  Nee');
+      } else {
+        jaXml  = paraSetText(tplJa,  '  Ja');
+        neeXml = paraSetText(tplNee, `X Nee: ${c.motivering || 'Voldoet niet.'}`);
+      }
+      return [
+        { type: 'para', xml: critXml, text: label },
+        { type: 'para', xml: jaXml,   text: paraGetText(jaXml) },
+        { type: 'para', xml: neeXml,  text: paraGetText(neeXml) }
+      ];
+    }).flat();
+
+    // Replace old criterion blocks with new ones (splice handles variable count)
+    const firstIdx = groups[0].criterIdx;
+    const lastIdx  = groups[groups.length - 1].neeIdx;
+    parts.splice(firstIdx, lastIdx - firstIdx + 1, ...newParts);
+  };
+
+  // Process bottom-to-top so splices don't shift indices for the next call
+  vulCriteria('Wensen:', null, beoordeling.wensen);
+  vulCriteria('Eisen:', 'Wensen:', beoordeling.eisen);
+
+  xml = pre + parts.map(p => p.xml).join('') + post;
+  zip.file('word/document.xml', xml);
+  return await zip.generateAsync({
+    type: 'blob',
+    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  });
+}
