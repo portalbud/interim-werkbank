@@ -719,7 +719,7 @@ function buildRolDrawerHtml(rol, kanalen) {
   h += '<div class="field"><label>Klant / Opdrachtgever</label><input id="rd_klant" value="' + esc(r.klant || '') + '"></div>';
   h += '<div class="field"><label>Locatie</label><input id="rd_locatie" value="' + esc(r.locatie || '') + '"></div>';
   h += '<div class="field"><label>Uren/week</label><input id="rd_uren" value="' + esc(r.uren_per_week || '') + '"></div>';
-  h += '<div class="field"><label>Globale deadline</label><input type="date" id="rd_deadline" value="' + esc(r.deadline || '') + '"></div>';
+  h += '<div class="field"><label>Deadline *</label><input type="date" id="rd_deadline" value="' + esc(r.deadline || '') + '"></div>';
   h += '<div class="field"><label>Status</label><select id="rd_status"><option value="open" ' + (r.status === 'open' ? 'selected' : '') + '>Open</option><option value="afgerond" ' + (r.status === 'afgerond' ? 'selected' : '') + '>Afgerond</option><option value="gearchiveerd" ' + (r.status === 'gearchiveerd' ? 'selected' : '') + '>Gearchiveerd</option></select></div>';
   h += '</div><div class="field"><label>Omschrijving / eisen</label><textarea id="rd_omschrijving" rows="4">' + esc(r.omschrijving || '') + '</textarea></div>';
   h += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">';
@@ -784,7 +784,7 @@ function buildRolDrawerHtml(rol, kanalen) {
     h += '<div class="field"><label>Broker / Partij</label><input id="nk_broker" placeholder="Hero, Striive, Randstad..."></div>';
     h += '<div class="field"><label>Type</label><select id="nk_type"><option value="mail">Mail</option><option value="portal">Portal</option><option value="telefoon">Telefoon / Appje</option></select></div>';
     h += '<div class="field"><label>Portal URL (optioneel)</label><input id="nk_url" placeholder="https://..."></div>';
-    h += '<div class="field"><label>Deadline *</label><input type="date" id="nk_deadline"></div>';
+    h += '<div class="field"><label>Deadline</label><input type="date" id="nk_deadline" value="' + esc(r.deadline || '') + '"></div>';
     h += '<div class="field"><label>Opgepakt door</label><select id="nk_opgepakt"><option value="">- niemand -</option>' + TEAMLEDEN.map(t => '<option>' + esc(t.naam) + '</option>').join('') + '</select></div>';
     h += '<div class="field"><label>Kandidaat</label><select id="nk_kandidaat"><option value="">- nog niet gekozen -</option>' + CANDIDATES.map(c => '<option value="' + c.id + '">' + esc(c.naam) + '</option>').join('') + '</select></div>';
     h += '</div><button class="btn sm" onclick="voegKanaalToe(this.dataset.id)" data-id=' + rol.id + '>Kanaal toevoegen</button>';
@@ -863,6 +863,7 @@ async function saveRol() {
   r.omschrijving  = document.getElementById('rd_omschrijving')?.value || null;
   r.status        = document.getElementById('rd_status')?.value || 'open';
   if (!r.functietitel) { toast('Functietitel is verplicht.'); return; }
+  if (!r.deadline) { toast('Deadline is verplicht.'); return; }
   if (!r.id) r.id = genUUID();
   try {
     const saved = await DB.upsertRol(r);
@@ -877,8 +878,7 @@ async function saveRol() {
 async function voegKanaalToe(rolId) {
   const broker = document.getElementById('nk_broker')?.value.trim();
   if (!broker) { toast('Vul een broker/partij naam in.'); return; }
-  const deadline = document.getElementById('nk_deadline')?.value;
-  if (!deadline) { toast('Deadline is verplicht.'); return; }
+  const deadline = document.getElementById('nk_deadline')?.value || null;
   const k = {
     rol_id: rolId,
     broker_naam: broker,
