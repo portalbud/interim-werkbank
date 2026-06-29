@@ -641,8 +641,7 @@ async function saveCandidate() {
 
     // Sync kalender
     if (c.beschikbaar) {
-      const bestaande = KALENDER.filter(e => e.kandidaat_id === c.id);
-      for (const e of bestaande) await DB.deleteKalender(e.id);
+      await DB.deleteKalenderVoorKandidaat(c.id);
       const d = new Date(c.beschikbaar);
       if (!isNaN(d)) {
         const m = d.getMonth() + 1, j = d.getFullYear();

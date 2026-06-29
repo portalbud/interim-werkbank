@@ -173,6 +173,9 @@ const DB = {
     if (error) throw error;
   },
   async deleteKalender(id) { await sb.from('kalender').delete().eq('id', id); },
+  async deleteKalenderVoorKandidaat(kandidaatId) {
+    await sb.from('kalender').delete().eq('kandidaat_id', kandidaatId);
+  },
 
   // teamleden
   async getTeamleden() {
