@@ -790,12 +790,12 @@ function buildRolDrawerHtml(rol, kanalen) {
     h += '</div><button class="btn sm" onclick="voegKanaalToe(this.dataset.id)" data-id=' + rol.id + '>Kanaal toevoegen</button>';
     h += '</div></div>';
 
-    // ── Volledige matchlijst (alleen tonen als er matches zijn) ───────────────
+    // ── Volledige matchlijst (tonen zodra er matches zijn) ───────────────────
     const rolMatchesFull = (window._rolMatches || {})[rol.id] || [];
-    if (rolMatchesFull.length > 3) {
+    if (rolMatchesFull.length > 0) {
       h += '<div class="panel">';
       h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
-      h += '<h3 style="margin:0">Alle matches (' + rolMatchesFull.length + ')</h3>';
+      h += '<h3 style="margin:0">Matches (' + rolMatchesFull.length + ')</h3>';
       h += '<button class="btn ghost sm" onclick="matchProfessionalsVoorRol(\'' + rol.id + '\',true)">Opnieuw matchen</button>';
       h += '</div>';
       h += renderRolMatches(rol, kanalen, rolMatchesFull);
