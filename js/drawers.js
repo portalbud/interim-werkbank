@@ -708,21 +708,7 @@ async function openRolDrawerMetData(data) {
     await openRolDrawer(nieuweRol.id);
     toast('Rol aangemaakt. Voeg kanalen toe.');
 
-    // Auto-match op de achtergrond
-    if (claudeKey() && CANDIDATES.length) {
-      setTimeout(async () => {
-        try {
-          const matches = await runMatchingVoorRol(nieuweRol);
-          window._rolMatches = window._rolMatches || {};
-          window._rolMatches[nieuweRol.id] = matches;
-          if (document.getElementById('drawer').classList.contains('show')) {
-            await openRolDrawer(nieuweRol.id);
-          }
-          const goede = matches.filter(m => m.score >= 50).length;
-          toast(goede ? goede + ' goede matches gevonden.' : 'Matching klaar — geen sterke matches.');
-        } catch(e) { console.warn('Auto-matching mislukt:', e.message); }
-      }, 400);
-    }
+    // Matching wordt handmatig gestart via de knop in de drawer
   } catch(e) { toast('Fout: ' + e.message); }
 }
 
@@ -759,12 +745,12 @@ function buildRolDrawerHtml(rol, kanalen) {
     h += '</div>';
 
     if (!topMatches.length) {
-      if (claudeKey() && CANDIDATES.length) {
-        h += '<div style="font-size:12px;color:var(--slate);display:flex;align-items:center;gap:8px"><span class="spin" style="display:inline-block;width:12px;height:12px;border:2px solid var(--line);border-top-color:var(--moss);border-radius:50%;animation:spin .7s linear infinite"></span>Matches worden geladen…</div>';
-      } else if (!CANDIDATES.length) {
+      if (!CANDIDATES.length) {
         h += '<div style="font-size:12px;color:var(--slate)">Nog geen professionals toegevoegd.</div>';
-      } else {
+      } else if (!claudeKey()) {
         h += '<div style="font-size:12px;color:var(--slate)">Vul je Claude API-sleutel in om te matchen.</div>';
+      } else {
+        h += '<button class="btn ghost sm" onclick="matchProfessionalsVoorRol(\'' + rol.id + '\')">Matchen</button>';
       }
     } else {
       topMatches.forEach(m => {
