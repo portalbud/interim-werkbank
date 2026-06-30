@@ -43,7 +43,7 @@ function setBadge(id, n) {
 }
 
 function updateBadges() {
-  setBadge('b-vandaag', KANALEN.filter(k => k.status === 'nieuw' || k.status === 'in_behandeling').length);
+  setBadge('b-vandaag', KANALEN.filter(k => (k.status === 'nieuw' || k.status === 'in_behandeling') && ROLLEN.find(r => r.id === k.rol_id)?.status !== 'gearchiveerd').length);
   setBadge('b-rollen', ROLLEN.filter(r => r.status === 'open').length);
 }
 
