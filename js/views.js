@@ -206,7 +206,7 @@ function renderVandaag() {
 
   // ── Data ─────────────────────────────────────────────────────────────────
   const actief = KANALEN
-    .filter(k => k.status === 'nieuw' || k.status === 'in_behandeling')
+    .filter(k => (k.status === 'nieuw' || k.status === 'in_behandeling') && ROLLEN.find(r => r.id === k.rol_id)?.status !== 'gearchiveerd')
     .sort((a, b) => {
       // Geen kandidaat bovenaan, dan op deadline
       const noCandA = !a.kandidaat_id, noCandB = !b.kandidaat_id;
@@ -216,7 +216,7 @@ function renderVandaag() {
       return dA - dB;
     });
 
-  const verstuurd = KANALEN.filter(k => k.status === 'verstuurd');
+  const verstuurd = KANALEN.filter(k => k.status === 'verstuurd' && ROLLEN.find(r => r.id === k.rol_id)?.status !== 'gearchiveerd');
 
   let h = '';
 
